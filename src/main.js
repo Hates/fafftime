@@ -11,6 +11,7 @@ const slowPeriodDataElement = document.getElementById('slowPeriodData');
 const timestampGapDataElement = document.getElementById('timestampGapData');
 const analysisControlsElement = document.getElementById('analysisControls');
 const mapContainerElement = document.getElementById('mapContainer');
+const showPeriodsOnMapCheckbox = document.getElementById('showPeriodsOnMap');
 
 const thresholdCheckboxes = {
   '2to5': document.getElementById('threshold_2to5'),
@@ -25,6 +26,7 @@ const thresholdCheckboxes = {
 let currentFitData = null;
 let currentFileName = null;
 let activityMap = null;
+let currentSlowPeriods = null;
 
 // Constants
 const RANGE_LABELS = {
@@ -96,6 +98,13 @@ Object.values(thresholdCheckboxes).forEach(checkbox => {
       displayActivityData(currentFitData, currentFileName);
     }
   });
+});
+
+// Handle map overlay toggle
+showPeriodsOnMapCheckbox.addEventListener('change', function() {
+  if (activityMap && currentSlowPeriods) {
+    updateMapOverlays();
+  }
 });
 
 // Utility functions
@@ -239,6 +248,8 @@ function displayActivityData(fitData, fileName) {
     
     // Analyze for slow/stopped periods and recording gaps
     const slowPeriods = findSlowPeriodsWithRanges(records, selectedRanges);
+    currentSlowPeriods = slowPeriods; // Store for map overlay
+    
     if (slowPeriods.length > 0) {
       // Separate slow periods and gaps for statistics
       const actualSlowPeriods = slowPeriods.filter(period => !period.isGap);
@@ -329,6 +340,7 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
         initializeCombinedMiniMaps(slowPeriods);
       }, 100);
     } else {
+      currentSlowPeriods = []; // No periods found
       const selectedRangeText = getSelectedRangeText(selectedRanges);
       
       slowPeriodsHtml += `
@@ -338,6 +350,11 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
 <p>Great job maintaining your pace and consistent recording! 🚴‍♀️💨</p>
 </div>
 `;
+    }
+    
+    // Update map overlays if map is initialized
+    if (activityMap) {
+      updateMapOverlays();
     }
   } else {
     html += '<p class="warning-message">⚠️ Could not determine start/end times from this FIT file.</p>';
@@ -512,6 +529,81 @@ function initializeMap(fitData) {
 
   // Fit map to show entire route
   activityMap.fitBounds(polyline.getBounds(), { padding: [10, 10] });
+
+  // Add slow periods and gaps overlay if enabled
+  updateMapOverlays();
+}
+
+function updateMapOverlays() {
+  if (!activityMap || !currentSlowPeriods) {
+    return;
+  }
+
+  // Remove existing overlay markers and lines
+  activityMap.eachLayer(layer => {
+    if (layer.options && (layer.options.isSlowPeriodOverlay || layer.options.isGapOverlay)) {
+      activityMap.removeLayer(layer);
+    }
+  });
+
+  // Only add overlays if checkbox is checked
+  if (!showPeriodsOnMapCheckbox.checked) {
+    return;
+  }
+
+  // Add markers for each slow period or gap
+  currentSlowPeriods.forEach((period, index) => {
+    if (period.isGap) {
+      // Handle recording gap
+      const gap = period.gapData;
+      
+      if (gap.startGpsPoint) {
+        L.marker(gap.startGpsPoint, {
+          icon: L.divIcon({
+            className: 'gap-overlay-marker',
+            html: '<div class="gap-overlay-marker">⏸️</div>',
+            iconSize: [20, 20]
+          }),
+          isGapOverlay: true
+        }).addTo(activityMap).bindPopup(`Recording Gap ${index + 1}<br>Duration: ${formatDuration(Math.round((period.endTime - period.startTime) / 1000))}`);
+      }
+      
+      if (gap.endGpsPoint && gap.startGpsPoint) {
+        // Add dashed line for gap if both points exist
+        L.polyline([gap.startGpsPoint, gap.endGpsPoint], {
+          color: '#dc3545',
+          weight: 4,
+          opacity: 0.8,
+          dashArray: '15, 10',
+          isGapOverlay: true
+        }).addTo(activityMap);
+      }
+    } else {
+      // Handle slow period
+      if (period.gpsPoints.length > 0) {
+        const centerPoint = period.gpsPoints[Math.floor(period.gpsPoints.length / 2)];
+        
+        L.marker(centerPoint, {
+          icon: L.divIcon({
+            className: 'slow-overlay-marker',
+            html: '<div class="slow-overlay-marker">🐌</div>',
+            iconSize: [20, 20]
+          }),
+          isSlowPeriodOverlay: true
+        }).addTo(activityMap).bindPopup(`Slow Period ${index + 1}<br>Duration: ${formatDuration(Math.round((period.endTime - period.startTime) / 1000))}<br>Records: ${period.recordCount}`);
+        
+        // Add highlighted route for slow period if multiple points
+        if (period.gpsPoints.length > 1) {
+          L.polyline(period.gpsPoints, {
+            color: '#ffc107',
+            weight: 6,
+            opacity: 0.9,
+            isSlowPeriodOverlay: true
+          }).addTo(activityMap);
+        }
+      }
+    }
+  });
 }
 
 function initializeSlowPeriodMiniMaps(slowPeriods) {
