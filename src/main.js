@@ -5,7 +5,6 @@ import './styles.css';
 const fileInput = document.getElementById('fitFile');
 const screenshot = document.getElementById('screenshot');
 const parseButton = document.getElementById('parseButton');
-const loadExampleFileLink = document.getElementById('loadExampleFile');
 const activityDataElement = document.getElementById('activityData');
 const activitySummaryElement = document.getElementById('activitySummary');
 const slowPeriodDataElement = document.getElementById('slowPeriodData');
@@ -13,6 +12,8 @@ const timestampGapDataElement = document.getElementById('timestampGapData');
 const analysisControlsElement = document.getElementById('analysisControls');
 const mapContainerElement = document.getElementById('mapContainer');
 const showPeriodsOnMapCheckbox = document.getElementById('showPeriodsOnMap');
+
+const loadExampleFileLink = document.getElementById('loadExampleFile');
 
 const thresholdCheckboxes = {
   '2to5': document.getElementById('threshold_2to5'),
@@ -120,45 +121,45 @@ async function loadExampleFile() {
     // Clear screenshot and show loading message
     screenshot.innerHTML = '';
     activityDataElement.innerHTML = '<p>📊 Loading example file...</p>';
-    
+
     // Fetch the example file
     const response = await fetch('GreatBritishEscapades2025.fit');
     if (!response.ok) {
       throw new Error(`Failed to load example file: ${response.status}`);
     }
-    
+
     // Get the file as array buffer
     const arrayBuffer = await response.arrayBuffer();
-    
+
     // Create stream from ArrayBuffer
     const fileStream = Stream.fromByteArray(new Uint8Array(arrayBuffer));
-    
+
     // Create decoder and parse
     const fileDecoder = new Decoder(fileStream);
     const { messages: fitData, errors: fitErrors } = fileDecoder.read();
-    
+
     // Display any errors
     if (fitErrors.length > 0) {
       console.warn('FIT parsing errors:', fitErrors);
     }
-    
+
     // Store data for reanalysis
     currentFitData = fitData;
     currentFileName = 'GreatBritishEscapades2025.fit';
-    
+
     // Show analysis controls
     analysisControlsElement.style.display = 'block';
-    
+
     // Extract activity information
     displayActivityData(fitData, 'GreatBritishEscapades2025.fit');
-    
+
     // Initialize map with GPS data
     initializeMap(fitData);
-    
+
     // Clear file input and enable parse button for future use
     fileInput.value = '';
     parseButton.disabled = false;
-    
+
   } catch (error) {
     activityDataElement.innerHTML = `<p class="error-message">❌ Error loading example file: ${error.message}</p>`;
     console.error('Example file loading error:', error);
@@ -278,29 +279,12 @@ function displayActivityData(fitData, fileName) {
   const timestampGaps = findTimestampGaps(records);
 
   // Display the results
-  let html = `<h2>📁 FIT File Analysis: ${fileName}</h2>`;
-  let slowPeriodsHtml = ``;
+  let activitySummaryHtml = `<h2>📁 FIT File Analysis: ${fileName}</h2>`;
+  let slowPeriodsDataHtml = ``;
 
   if (startTime && endTime) {
     const duration = Math.round((endTime - startTime) / 1000);
     const formattedDuration = formatDuration(duration);
-
-    html += `
-<div class="activity-times">
-<h3>⏰ Activity Times</h3>
-<p><strong>Start Time:</strong> ${startTime.toLocaleString()}</p>
-<p><strong>End Time:</strong> ${endTime.toLocaleString()}</p>
-<p><strong>Duration:</strong> ${formattedDuration}</p>
-`;
-
-    // Add distance if available
-    if (totalDistance != null) {
-      const distanceKm = (totalDistance / 1000).toFixed(2);
-      const distanceMiles = (totalDistance * 0.000621371).toFixed(2);
-      html += `<p><strong>Total Distance:</strong> ${distanceKm} km (${distanceMiles} miles)</p>`;
-    }
-
-    html += `</div>`;
 
     const selectedRanges = getSelectedRanges();
     
@@ -321,7 +305,7 @@ function displayActivityData(fitData, fileName) {
       const totalSlowFormattedDuration = formatDuration(totalSlowDuration);
       const selectedRangeText = getSelectedRangeText(selectedRanges);
 
-      slowPeriodsHtml += `
+      slowPeriodsDataHtml += `
 <div class="slow-periods">
 <h3>🐌 Slow Periods & Recording Gaps</h3>
 <p>Found ${slowPeriods.length} period(s) in selected ranges (${selectedRangeText})</p>
@@ -362,7 +346,7 @@ function displayActivityData(fitData, fileName) {
             endGoogleMapsLink = `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="google-maps-link">📍 End location</a>`;
           }
 
-          slowPeriodsHtml += `
+          slowPeriodsDataHtml += `
 <div class="timestamp-gap-item">
 <strong>⏸️ Recording Gap ${index + 1}:</strong> ${startTime} - ${endTime}<br>
 <strong>Duration:</strong> ${durationText} (no data recorded)<br>
@@ -380,7 +364,7 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
             googleMapsLink = `<br><strong>Location:</strong> <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="google-maps-link">📍 View on Google Maps</a>`;
           }
 
-          slowPeriodsHtml += `
+          slowPeriodsDataHtml += `
 <div class="slow-period-item">
 <strong>🐌 Slow Period ${index + 1}:</strong> ${startTime} - ${endTime}<br>
 <strong>Duration:</strong> ${durationText} (${period.recordCount} records)<br>
@@ -391,7 +375,7 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
         }
       });
 
-      slowPeriodsHtml += `</div>`;
+      slowPeriodsDataHtml += `</div>`;
 
       // Initialize mini maps after DOM is updated
       setTimeout(() => {
@@ -401,7 +385,7 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
       currentSlowPeriods = []; // No periods found
       const selectedRangeText = getSelectedRangeText(selectedRanges);
       
-      slowPeriodsHtml += `
+      slowPeriodsDataHtml += `
 <div class="no-slow-periods">
 <h3>✅ No Slow Periods or Recording Gaps Detected</h3>
 <p>No periods found in selected ranges (${selectedRangeText}) where speed was &lt; 1 m/s or where recording gaps occurred.</p>
@@ -409,17 +393,49 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
 </div>
 `;
     }
+
+    // Calculate estimated moving time
+    let estimatedMovingTime = duration;
+    let totalSlowDuration = 0;
+    if (slowPeriods.length > 0) {
+      totalSlowDuration = slowPeriods.reduce((total, period) => {
+        return total + Math.round((period.endTime - period.startTime) / 1000);
+      }, 0);
+      estimatedMovingTime = Math.max(0, duration - totalSlowDuration);
+    }
+    const formattedEstimatedMovingTime = formatDuration(estimatedMovingTime);
+    const formattedTotalSlowDurationTime = formatDuration(totalSlowDuration);
+
+    activitySummaryHtml += `
+<div class="activity-times">
+<h3>⏰ Activity Times</h3>
+<p><strong>Start Time:</strong> ${startTime.toLocaleString()}</p>
+<p><strong>End Time:</strong> ${endTime.toLocaleString()}</p>
+<p><strong>Duration:</strong> ${formattedDuration}</p>
+<p><strong>Est. Stopped Time:</strong> ${formattedTotalSlowDurationTime}</p>
+<p><strong>Est. Moving Time:</strong> ${formattedEstimatedMovingTime}</p>
+`;
+
+    // Add distance if available
+    if (totalDistance != null) {
+      const distanceKm = (totalDistance / 1000).toFixed(2);
+      const distanceMiles = (totalDistance * 0.000621371).toFixed(2);
+      activitySummaryHtml += `<p><strong>Total Distance:</strong> ${distanceKm} km (${distanceMiles} miles)</p>`;
+    }
+
+    activitySummaryHtml += `</div>`;
+
     
     // Update map overlays if map is initialized
     if (activityMap) {
       updateMapOverlays();
     }
   } else {
-    html += '<p class="warning-message">⚠️ Could not determine start/end times from this FIT file.</p>';
+    activitySummaryHtml += '<p class="warning-message">⚠️ Could not determine start/end times from this FIT file.</p>';
   }
 
-  activitySummaryElement.innerHTML = html;
-  slowPeriodDataElement.innerHTML = slowPeriodsHtml;
+  activitySummaryElement.innerHTML = activitySummaryHtml;
+  slowPeriodDataElement.innerHTML = slowPeriodsDataHtml;
   
   // Clear the timestamp gap section since it's now combined
   timestampGapDataElement.innerHTML = '';
