@@ -1,35 +1,6 @@
 import { Decoder, Stream, Profile, Utils } from '@garmin/fitsdk';
 import './styles.css';
 
-// File input functionality
-const fileInput = document.getElementById('fitFile');
-const screenshot = document.getElementById('screenshot');
-const parseButton = document.getElementById('parseButton');
-const activityDataElement = document.getElementById('activityData');
-const activitySummaryElement = document.getElementById('activitySummary');
-const slowPeriodDataElement = document.getElementById('slowPeriodData');
-const timestampGapDataElement = document.getElementById('timestampGapData');
-const analysisControlsElement = document.getElementById('analysisControls');
-const mapContainerElement = document.getElementById('mapContainer');
-const showPeriodsOnMapCheckbox = document.getElementById('showPeriodsOnMap');
-
-const loadExampleFileLink = document.getElementById('loadExampleFile');
-
-const thresholdCheckboxes = {
-  '2to5': document.getElementById('threshold_2to5'),
-  '5to10': document.getElementById('threshold_5to10'),
-  '10to30': document.getElementById('threshold_10to30'),
-  '30to60': document.getElementById('threshold_30to60'),
-  '1to2hours': document.getElementById('threshold_1to2hours'),
-  over2hours: document.getElementById('threshold_over2hours')
-};
-
-// Store parsed data for reanalysis
-let currentFitData = null;
-let currentFileName = null;
-let activityMap = null;
-let currentSlowPeriods = null;
-
 // Constants
 const RANGE_LABELS = {
   '2to5': '2-5 minutes',
@@ -43,19 +14,45 @@ const RANGE_LABELS = {
 const SPEED_THRESHOLD = 0.75; // m/s threshold for slow periods
 const TIMESTAMP_GAP_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-// Enable parse button when file is selected
+// DOM Elements
+const fileInput = document.getElementById('fitFile');
+const screenshot = document.getElementById('screenshot');
+const parseButton = document.getElementById('parseButton');
+const activityDataElement = document.getElementById('activityData');
+const activitySummaryElement = document.getElementById('activitySummary');
+const slowPeriodDataElement = document.getElementById('slowPeriodData');
+const timestampGapDataElement = document.getElementById('timestampGapData');
+const analysisControlsElement = document.getElementById('analysisControls');
+const mapContainerElement = document.getElementById('mapContainer');
+const showPeriodsOnMapCheckbox = document.getElementById('showPeriodsOnMap');
+const loadExampleFileLink = document.getElementById('loadExampleFile');
+
+const thresholdCheckboxes = {
+  '2to5': document.getElementById('threshold_2to5'),
+  '5to10': document.getElementById('threshold_5to10'),
+  '10to30': document.getElementById('threshold_10to30'),
+  '30to60': document.getElementById('threshold_30to60'),
+  '1to2hours': document.getElementById('threshold_1to2hours'),
+  over2hours: document.getElementById('threshold_over2hours')
+};
+
+// Global State
+let currentFitData = null;
+let currentFileName = null;
+let activityMap = null;
+let currentSlowPeriods = null;
+
+// Event Listeners
 fileInput.addEventListener('change', function(event) {
   const file = event.target.files[0];
   parseButton.disabled = !file;
 });
 
-// Load example file when link is clicked
 loadExampleFileLink.addEventListener('click', async function(event) {
   event.preventDefault();
   await loadExampleFile();
 });
 
-// Parse FIT file when button is clicked
 parseButton.addEventListener('click', async function() {
   screenshot.innerHTML = '';
 
@@ -99,7 +96,6 @@ parseButton.addEventListener('click', async function() {
   }
 });
 
-// Handle threshold checkbox changes
 Object.values(thresholdCheckboxes).forEach(checkbox => {
   checkbox.addEventListener('change', function() {
     if (currentFitData && currentFileName) {
@@ -108,14 +104,270 @@ Object.values(thresholdCheckboxes).forEach(checkbox => {
   });
 });
 
-// Handle map overlay toggle
 showPeriodsOnMapCheckbox.addEventListener('change', function() {
   if (activityMap && currentSlowPeriods) {
     updateMapOverlays();
   }
 });
 
-// Load example file function
+// Utility Functions
+function formatDuration(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  if (totalSeconds >= 3600) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else {
+    return `${minutes}m ${seconds}s`;
+  }
+}
+
+function getSelectedRanges() {
+  return Object.entries(thresholdCheckboxes)
+    .filter(([key, checkbox]) => checkbox.checked)
+    .map(([key, checkbox]) => key);
+}
+
+function getSelectedRangeText(selectedRanges) {
+  return selectedRanges.map(range => RANGE_LABELS[range]).join(', ');
+}
+
+function matchesTimeRange(range, durationMinutes, durationHours) {
+  switch (range) {
+    case '2to5': return durationMinutes >= 2 && durationMinutes < 5;
+    case '5to10': return durationMinutes >= 5 && durationMinutes < 10;
+    case '10to30': return durationMinutes >= 10 && durationMinutes < 30;
+    case '30to60': return durationMinutes >= 30 && durationMinutes < 60;
+    case '1to2hours': return durationHours >= 1 && durationHours < 2;
+    case 'over2hours': return durationHours >= 2;
+    default: return false;
+  }
+}
+
+function convertGpsCoordinates(records) {
+  return records
+    .filter(record => record.positionLat && record.positionLong)
+    .map(record => [
+      record.positionLat * (180 / Math.pow(2, 31)),
+      record.positionLong * (180 / Math.pow(2, 31))
+    ]);
+}
+
+// Data Processing Functions
+function extractActivityTimes(sessions, records) {
+  let startTime = null;
+  let endTime = null;
+  let movingTime = null;
+  let totalDistance = null;
+
+  if (sessions.length > 0) {
+    const session = sessions[0];
+    startTime = session.startTime;
+    movingTime = session.totalTimerTime;
+    totalDistance = session.totalDistance;
+
+    if (session.totalElapsedTime) {
+      endTime = new Date(startTime.getTime() + (session.totalElapsedTime * 1000));
+    }
+  }
+
+  // If no session data, try to get from records
+  if (records.length > 0) {
+    startTime = records[0].timestamp;
+    endTime = records[records.length - 1].timestamp;
+  }
+
+  return { startTime, endTime, movingTime, totalDistance };
+}
+
+/**
+ * Detects recording gaps in FIT file data by analyzing timestamp differences between consecutive records.
+ * Recording gaps occur when a GPS device is turned off, paused, or loses signal for extended periods.
+ * Only gaps longer than TIMESTAMP_GAP_THRESHOLD (5 minutes) are considered significant.
+ * 
+ * @param {Array} records - Array of record messages from FIT file, each containing timestamp and position data
+ * @returns {Array} Array of gap objects with timing, location, and distance information
+ */
+function findTimestampGaps(records) {
+  const gaps = [];
+  
+  // Iterate through consecutive record pairs to find timestamp jumps
+  for (let i = 1; i < records.length; i++) {
+    const previousRecord = records[i - 1];
+    const currentRecord = records[i];
+    
+    // Skip records that don't have valid timestamps
+    if (!previousRecord.timestamp || !currentRecord.timestamp) {
+      continue;
+    }
+    
+    // Calculate the time difference between consecutive records
+    const timeDifference = currentRecord.timestamp - previousRecord.timestamp;
+    
+    // Check if the gap exceeds our threshold (5 minutes = 300,000ms)
+    if (timeDifference > TIMESTAMP_GAP_THRESHOLD) {
+      // Convert gap duration to more readable units
+      const gapDurationMinutes = Math.round(timeDifference / (1000 * 60));
+      const gapDurationHours = gapDurationMinutes / 60;
+      
+      // Create gap object with comprehensive information for analysis and display
+      gaps.push({
+        startTime: previousRecord.timestamp,  // When recording stopped
+        endTime: currentRecord.timestamp,     // When recording resumed
+        gapDuration: timeDifference,          // Gap duration in milliseconds
+        gapDurationMinutes: gapDurationMinutes,
+        gapDurationHours: gapDurationHours,
+        startDistance: previousRecord.distance || 0,  // Distance when recording stopped
+        endDistance: currentRecord.distance || 0,     // Distance when recording resumed
+        // Convert GPS coordinates from Garmin's semicircle format to decimal degrees
+        // Semicircles are stored as 32-bit signed integers where 2^31 semicircles = 180 degrees
+        startGpsPoint: previousRecord.positionLat && previousRecord.positionLong ? 
+          [previousRecord.positionLat * (180 / Math.pow(2, 31)), 
+           previousRecord.positionLong * (180 / Math.pow(2, 31))] : null,
+        endGpsPoint: currentRecord.positionLat && currentRecord.positionLong ? 
+          [currentRecord.positionLat * (180 / Math.pow(2, 31)), 
+           currentRecord.positionLong * (180 / Math.pow(2, 31))] : null
+      });
+    }
+  }
+  
+  return gaps;
+}
+
+/**
+ * Processes a sequence of consecutive slow records to create a slow period object.
+ * This function validates that the sequence duration matches the user's selected time ranges,
+ * and extracts relevant information like GPS coordinates, distances, and timing.
+ * 
+ * @param {Array} currentSlowSequence - Array of consecutive FIT records where speed < SPEED_THRESHOLD
+ * @param {Array} selectedRanges - Array of user-selected time range filters (e.g., ['5to10', '30to60'])
+ * @returns {Object|null} Slow period object with timing and location data, or null if no match
+ */
+function processSlowSequence(currentSlowSequence, selectedRanges) {
+  // Early return for empty sequences - no slow period to process
+  if (currentSlowSequence.length === 0) return null;
+  
+  // Extract boundary records to calculate the overall duration of this slow period
+  const startRecord = currentSlowSequence[0];
+  const endRecord = currentSlowSequence[currentSlowSequence.length - 1];
+  const durationMs = endRecord.timestamp - startRecord.timestamp;
+  const durationMinutes = durationMs / (1000 * 60);
+  const durationHours = durationMinutes / 60;
+
+  // Check if this slow period's duration falls within any of the user's selected time ranges
+  // This filtering allows users to focus on specific types of stops (e.g., only long breaks)
+  const matchesRange = selectedRanges.some(range => 
+    matchesTimeRange(range, durationMinutes, durationHours)
+  );
+
+  // Only create a period object if it matches the user's filtering criteria
+  if (matchesRange) {
+    // Extract distance information to show where in the ride this slow period occurred
+    const startDistance = startRecord.distance || 0;
+    const endDistance = endRecord.distance || startDistance; // Fallback if no end distance
+
+    // Return comprehensive slow period object for display and map rendering
+    return {
+      startTime: startRecord.timestamp,    // When the slow period began
+      endTime: endRecord.timestamp,        // When the slow period ended
+      recordCount: currentSlowSequence.length,  // Number of GPS records in this period
+      startDistance: startDistance,        // Distance marker at start of slow period
+      endDistance: endDistance,           // Distance marker at end of slow period
+      gpsPoints: convertGpsCoordinates(currentSlowSequence)  // GPS trail during slow period
+    };
+  }
+  
+  // Return null if this slow period doesn't match the user's selected time ranges
+  return null;
+}
+
+/**
+ * Finds slow periods and recording gaps from FIT file records that match the selected time ranges.
+ * This function combines two types of "faff time":
+ * 1. Slow periods: Consecutive sequences where speed < 0.75 m/s (rider is moving slowly or stopped)
+ * 2. Recording gaps: Periods where no data was recorded (device off/paused) for 5+ minutes
+ * 
+ * The function uses processSlowSequence() to validate and format speed-based slow periods,
+ * and findTimestampGaps() to detect recording interruptions.
+ * 
+ * @param {Array} records - Array of record messages from FIT file containing timestamps, speeds, GPS, etc.
+ * @param {Array} selectedRanges - Array of selected time range strings (e.g., ['5to10', '30to60'])
+ * @returns {Array} Array of period objects containing both slow periods and recording gaps, sorted chronologically
+ */
+function findSlowPeriodsWithRanges(records, selectedRanges) {
+  // Early return if no time ranges are selected for analysis
+  if (selectedRanges.length === 0) return [];
+
+  const slowPeriods = [];
+  let currentSlowSequence = [];
+
+  // PHASE 1: Find consecutive slow periods where speed < SPEED_THRESHOLD (0.75 m/s)
+  // Iterate through all records to build sequences of consecutive slow records
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    // Use enhancedSpeed if available, fallback to speed, default to 0
+    const speed = record.enhancedSpeed || record.speed || 0;
+
+    if (speed < SPEED_THRESHOLD) {
+      // Record is slow, add it to the current sequence
+      currentSlowSequence.push(record);
+    } else {
+      // Record is fast, process any accumulated slow sequence
+      const slowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
+      if (slowPeriod) {
+        slowPeriods.push(slowPeriod);
+      }
+      // Reset sequence for next potential slow period
+      currentSlowSequence = [];
+    }
+  }
+
+  // Handle the case where the activity ends with slow records
+  // (no fast record to trigger processing of the final sequence)
+  const finalSlowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
+  if (finalSlowPeriod) {
+    slowPeriods.push(finalSlowPeriod);
+  }
+
+  // PHASE 2: Find recording gaps (timestamp jumps > 5 minutes) and add matching ones
+  const timestampGaps = findTimestampGaps(records);
+  timestampGaps.forEach(gap => {
+    const gapDurationMinutes = gap.gapDurationMinutes;
+    const gapDurationHours = gap.gapDurationHours;
+    
+    // Check if this gap's duration falls within any of the selected time ranges
+    const matchesRange = selectedRanges.some(range => 
+      matchesTimeRange(range, gapDurationMinutes, gapDurationHours)
+    );
+
+    if (matchesRange) {
+      // Convert recording gap to the same format as slow periods for unified handling
+      const gapAsPeriod = {
+        startTime: gap.startTime,
+        endTime: gap.endTime,
+        recordCount: 0, // No records exist during a gap
+        startDistance: gap.startDistance,
+        endDistance: gap.endDistance,
+        // Build GPS points array from available start/end coordinates
+        gpsPoints: gap.startGpsPoint && gap.endGpsPoint ? [gap.startGpsPoint, gap.endGpsPoint] : 
+                  gap.startGpsPoint ? [gap.startGpsPoint] :
+                  gap.endGpsPoint ? [gap.endGpsPoint] : [],
+        isGap: true, // Flag to distinguish gaps from speed-based slow periods
+        gapData: gap // Preserve original gap data for specialized rendering
+      };
+      slowPeriods.push(gapAsPeriod);
+    }
+  });
+
+  // Sort all periods (both slow periods and gaps) chronologically by start time
+  // This creates a timeline showing when each period of "faff time" occurred
+  slowPeriods.sort((a, b) => a.startTime - b.startTime);
+
+  return slowPeriods;
+}
+
+// File Loading Functions
 async function loadExampleFile() {
   try {
     // Clear screenshot and show loading message
@@ -166,107 +418,7 @@ async function loadExampleFile() {
   }
 }
 
-// Utility functions
-function formatDuration(totalSeconds) {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  
-  if (totalSeconds >= 3600) {
-    return `${hours}h ${minutes}m ${seconds}s`;
-  } else {
-    return `${minutes}m ${seconds}s`;
-  }
-}
-
-function getSelectedRanges() {
-  return Object.entries(thresholdCheckboxes)
-    .filter(([key, checkbox]) => checkbox.checked)
-    .map(([key, checkbox]) => key);
-}
-
-function getSelectedRangeText(selectedRanges) {
-  return selectedRanges.map(range => RANGE_LABELS[range]).join(', ');
-}
-
-function matchesTimeRange(range, durationMinutes, durationHours) {
-  switch (range) {
-    case '2to5': return durationMinutes >= 2 && durationMinutes < 5;
-    case '5to10': return durationMinutes >= 5 && durationMinutes < 10;
-    case '10to30': return durationMinutes >= 10 && durationMinutes < 30;
-    case '30to60': return durationMinutes >= 30 && durationMinutes < 60;
-    case '1to2hours': return durationHours >= 1 && durationHours < 2;
-    case 'over2hours': return durationHours >= 2;
-    default: return false;
-  }
-}
-
-function convertGpsCoordinates(records) {
-  return records
-    .filter(record => record.positionLat && record.positionLong)
-    .map(record => [
-      record.positionLat * (180 / Math.pow(2, 31)),
-      record.positionLong * (180 / Math.pow(2, 31))
-    ]);
-}
-
-function extractActivityTimes(sessions, records) {
-  let startTime = null;
-  let endTime = null;
-  let movingTime = null;
-  let totalDistance = null;
-
-  if (sessions.length > 0) {
-    const session = sessions[0];
-    startTime = session.startTime;
-    movingTime = session.totalTimerTime;
-    totalDistance = session.totalDistance;
-
-    if (session.totalElapsedTime) {
-      endTime = new Date(startTime.getTime() + (session.totalElapsedTime * 1000));
-    }
-  }
-
-  // If no session data, try to get from records
-  if (records.length > 0) {
-    startTime = records[0].timestamp;
-    endTime = records[records.length - 1].timestamp;
-  }
-
-  return { startTime, endTime, movingTime, totalDistance };
-}
-
-function processSlowSequence(currentSlowSequence, selectedRanges) {
-  if (currentSlowSequence.length === 0) return null;
-  
-  const startRecord = currentSlowSequence[0];
-  const endRecord = currentSlowSequence[currentSlowSequence.length - 1];
-  const durationMs = endRecord.timestamp - startRecord.timestamp;
-  const durationMinutes = durationMs / (1000 * 60);
-  const durationHours = durationMinutes / 60;
-
-  // Check if duration matches any selected range
-  const matchesRange = selectedRanges.some(range => 
-    matchesTimeRange(range, durationMinutes, durationHours)
-  );
-
-  if (matchesRange) {
-    const startDistance = startRecord.distance || 0;
-    const endDistance = endRecord.distance || startDistance;
-
-    return {
-      startTime: startRecord.timestamp,
-      endTime: endRecord.timestamp,
-      recordCount: currentSlowSequence.length,
-      startDistance: startDistance,
-      endDistance: endDistance,
-      gpsPoints: convertGpsCoordinates(currentSlowSequence)
-    };
-  }
-  
-  return null;
-}
-
+// Display Functions
 function displayActivityData(fitData, fileName) {
   // Find session and record data
   const sessions = fitData.sessionMesgs || [];
@@ -452,107 +604,7 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
   activityDataElement.innerHTML = activityHtml;
 }
 
-function findTimestampGaps(records) {
-  const gaps = [];
-  
-  for (let i = 1; i < records.length; i++) {
-    const previousRecord = records[i - 1];
-    const currentRecord = records[i];
-    
-    if (!previousRecord.timestamp || !currentRecord.timestamp) {
-      continue;
-    }
-    
-    const timeDifference = currentRecord.timestamp - previousRecord.timestamp;
-    
-    if (timeDifference > TIMESTAMP_GAP_THRESHOLD) {
-      const gapDurationMinutes = Math.round(timeDifference / (1000 * 60));
-      const gapDurationHours = gapDurationMinutes / 60;
-      
-      gaps.push({
-        startTime: previousRecord.timestamp,
-        endTime: currentRecord.timestamp,
-        gapDuration: timeDifference,
-        gapDurationMinutes: gapDurationMinutes,
-        gapDurationHours: gapDurationHours,
-        startDistance: previousRecord.distance || 0,
-        endDistance: currentRecord.distance || 0,
-        startGpsPoint: previousRecord.positionLat && previousRecord.positionLong ? 
-          [previousRecord.positionLat * (180 / Math.pow(2, 31)), 
-           previousRecord.positionLong * (180 / Math.pow(2, 31))] : null,
-        endGpsPoint: currentRecord.positionLat && currentRecord.positionLong ? 
-          [currentRecord.positionLat * (180 / Math.pow(2, 31)), 
-           currentRecord.positionLong * (180 / Math.pow(2, 31))] : null
-      });
-    }
-  }
-  
-  return gaps;
-}
-
-function findSlowPeriodsWithRanges(records, selectedRanges) {
-  if (selectedRanges.length === 0) return [];
-
-  const slowPeriods = [];
-  let currentSlowSequence = [];
-
-  // Iterate through records to find consecutive slow periods
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i];
-    const speed = record.enhancedSpeed || record.speed || 0;
-
-    if (speed < SPEED_THRESHOLD) {
-      currentSlowSequence.push(record);
-    } else {
-      const slowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
-      if (slowPeriod) {
-        slowPeriods.push(slowPeriod);
-      }
-      currentSlowSequence = [];
-    }
-  }
-
-  // Check final sequence in case it ends with slow records
-  const finalSlowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
-  if (finalSlowPeriod) {
-    slowPeriods.push(finalSlowPeriod);
-  }
-
-  // Add timestamp gaps that match the selected ranges
-  const timestampGaps = findTimestampGaps(records);
-  timestampGaps.forEach(gap => {
-    const gapDurationMinutes = gap.gapDurationMinutes;
-    const gapDurationHours = gap.gapDurationHours;
-    
-    // Check if gap duration matches any selected range
-    const matchesRange = selectedRanges.some(range => 
-      matchesTimeRange(range, gapDurationMinutes, gapDurationHours)
-    );
-
-    if (matchesRange) {
-      // Convert gap to slow period format
-      const gapAsPeriod = {
-        startTime: gap.startTime,
-        endTime: gap.endTime,
-        recordCount: 0, // No records during gap
-        startDistance: gap.startDistance,
-        endDistance: gap.endDistance,
-        gpsPoints: gap.startGpsPoint && gap.endGpsPoint ? [gap.startGpsPoint, gap.endGpsPoint] : 
-                  gap.startGpsPoint ? [gap.startGpsPoint] :
-                  gap.endGpsPoint ? [gap.endGpsPoint] : [],
-        isGap: true, // Flag to identify this as a recording gap
-        gapData: gap // Store original gap data for map rendering
-      };
-      slowPeriods.push(gapAsPeriod);
-    }
-  });
-
-  // Sort all periods by start time
-  slowPeriods.sort((a, b) => a.startTime - b.startTime);
-
-  return slowPeriods;
-}
-
+// Map Functions
 function initializeMap(fitData) {
   const records = fitData.recordMesgs || [];
   const gpsPoints = convertGpsCoordinates(records);
@@ -676,72 +728,6 @@ function updateMapOverlays() {
           }).addTo(activityMap);
         }
       }
-    }
-  });
-}
-
-function initializeSlowPeriodMiniMaps(slowPeriods) {
-  slowPeriods.forEach((period, index) => {
-    const mapId = `miniMap${index}`;
-    const mapElement = document.getElementById(mapId);
-
-    if (!mapElement || period.gpsPoints.length === 0) {
-      // If no GPS data, show message in mini map container
-      if (mapElement) {
-        mapElement.innerHTML = '<div class="no-gps-message">No GPS data for this period</div>';
-      }
-      return;
-    }
-
-    // Create mini map
-    const miniMap = L.map(mapId, {
-      zoomControl: true,
-      attributionControl: false,
-      dragging: true,
-      scrollWheelZoom: true,
-      doubleClickZoom: true,
-      touchZoom: true
-    });
-
-    // Add tile layer
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: ''
-    }).addTo(miniMap);
-
-    if (period.gpsPoints.length === 1) {
-      // Single point - just show marker
-      const point = period.gpsPoints[0];
-      miniMap.setView(point, 16);
-      L.marker(point)
-        .addTo(miniMap)
-        .bindPopup(`Slow period ${index + 1}`);
-    } else {
-      // Multiple points - show route
-      const polyline = L.polyline(period.gpsPoints, { 
-        color: '#ffc107', 
-        weight: 4,
-        opacity: 0.8 
-      }).addTo(miniMap);
-
-      // Add start and end markers
-      L.marker(period.gpsPoints[0], {
-        icon: L.divIcon({
-          className: 'start-marker',
-          html: '<div class="start-marker">S</div>',
-          iconSize: [20, 20]
-        })
-      }).addTo(miniMap);
-
-      L.marker(period.gpsPoints[period.gpsPoints.length - 1], {
-        icon: L.divIcon({
-          className: 'end-marker',
-          html: '<div class="end-marker">E</div>',
-          iconSize: [20, 20]
-        })
-      }).addTo(miniMap);
-
-      // Fit to bounds with padding
-      miniMap.fitBounds(polyline.getBounds(), { padding: [10, 10] });
     }
   });
 }
