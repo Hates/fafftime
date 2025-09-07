@@ -5,6 +5,7 @@ import './styles.css';
 const fileInput = document.getElementById('fitFile');
 const screenshot = document.getElementById('screenshot');
 const parseButton = document.getElementById('parseButton');
+const loadExampleFileLink = document.getElementById('loadExampleFile');
 const activityDataElement = document.getElementById('activityData');
 const activitySummaryElement = document.getElementById('activitySummary');
 const slowPeriodDataElement = document.getElementById('slowPeriodData');
@@ -45,6 +46,12 @@ const TIMESTAMP_GAP_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
 fileInput.addEventListener('change', function(event) {
   const file = event.target.files[0];
   parseButton.disabled = !file;
+});
+
+// Load example file when link is clicked
+loadExampleFileLink.addEventListener('click', async function(event) {
+  event.preventDefault();
+  await loadExampleFile();
 });
 
 // Parse FIT file when button is clicked
@@ -106,6 +113,57 @@ showPeriodsOnMapCheckbox.addEventListener('change', function() {
     updateMapOverlays();
   }
 });
+
+// Load example file function
+async function loadExampleFile() {
+  try {
+    // Clear screenshot and show loading message
+    screenshot.innerHTML = '';
+    activityDataElement.innerHTML = '<p>📊 Loading example file...</p>';
+    
+    // Fetch the example file
+    const response = await fetch('GreatBritishEscapades2025.fit');
+    if (!response.ok) {
+      throw new Error(`Failed to load example file: ${response.status}`);
+    }
+    
+    // Get the file as array buffer
+    const arrayBuffer = await response.arrayBuffer();
+    
+    // Create stream from ArrayBuffer
+    const fileStream = Stream.fromByteArray(new Uint8Array(arrayBuffer));
+    
+    // Create decoder and parse
+    const fileDecoder = new Decoder(fileStream);
+    const { messages: fitData, errors: fitErrors } = fileDecoder.read();
+    
+    // Display any errors
+    if (fitErrors.length > 0) {
+      console.warn('FIT parsing errors:', fitErrors);
+    }
+    
+    // Store data for reanalysis
+    currentFitData = fitData;
+    currentFileName = 'GreatBritishEscapades2025.fit';
+    
+    // Show analysis controls
+    analysisControlsElement.style.display = 'block';
+    
+    // Extract activity information
+    displayActivityData(fitData, 'GreatBritishEscapades2025.fit');
+    
+    // Initialize map with GPS data
+    initializeMap(fitData);
+    
+    // Clear file input and enable parse button for future use
+    fileInput.value = '';
+    parseButton.disabled = false;
+    
+  } catch (error) {
+    activityDataElement.innerHTML = `<p class="error-message">❌ Error loading example file: ${error.message}</p>`;
+    console.error('Example file loading error:', error);
+  }
+}
 
 // Utility functions
 function formatDuration(totalSeconds) {

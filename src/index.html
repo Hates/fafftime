@@ -21,6 +21,11 @@
       <label for="fitFile">Select FIT File:</label>
       <input type="file" id="fitFile" accept=".fit" />
       <button id="parseButton" disabled>Parse FIT File</button>
+
+      <div class="example-file-link">
+        <a href="#" id="loadExampleFile">💁 Load example FIT file</a>
+      </div>
+
       <span class="disclaimer">
         <strong class="red">If you have sticthed multiple files together, ensure you use a tool like <a href="https://www.fitfileviewer.com/">FIT File Viewer</a> to correct any duplicate splits or records.</strong>
         <br>
@@ -48,7 +53,7 @@
       <label>Slow Period Thresholds:</label>
       <div>
         <label>
-          <input type="checkbox" id="threshold_2to5" value="2to5"> 2-5 minutes
+          <input type="checkbox" id="threshold_2to5" value="2to5" checked> 2-5 minutes
         </label>
         <label>
           <input type="checkbox" id="threshold_5to10" value="5to10" checked> 5-10 minutes

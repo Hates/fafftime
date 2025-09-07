@@ -23,13 +23,33 @@ h4 {
 
 .disclaimer {
   display: block;
-  padding-top: 30px;
   color: #555;
   font-size: 0.7em;
 }
 
 .disclaimer a {
   color: #333;
+}
+
+.example-file-link {
+  margin: 20px 0;
+  font-size: 0.9em;
+}
+
+.example-file-link a {
+  color: #0066cc;
+  text-decoration: none;
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background: #f8f9fa;
+  display: inline-block;
+  transition: background-color 0.2s;
+}
+
+.example-file-link a:hover {
+  background: #e9ecef;
+  text-decoration: none;
 }
 
 #mapContainer {

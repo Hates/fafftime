@@ -4,6 +4,10 @@ Ultra Cycling faff time Analyser - Find where you spent time stopped instead of 
 
 > 🤖 This project was generated with the help of [Claude Code](https://claude.ai/code)
 
+## Screenshot
+
+![Fafftime Analyser Screenshot](src/screenshot.png)
+
 ## Features
 
 - **FIT File Parsing**: Upload and parse Garmin FIT files using the official SDK

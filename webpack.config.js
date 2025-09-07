@@ -26,6 +26,7 @@ module.exports = {
       patterns: [
         { from: 'src/screenshot.png', to: 'screenshot.png' },
         { from: 'src/favicon.svg', to: 'favicon.svg', noErrorOnMissing: true },
+        { from: 'src/GreatBritishEscapades2025.fit', to: 'GreatBritishEscapades2025.fit', noErrorOnMissing: true },
       ],
     }),
   ],
