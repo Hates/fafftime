@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultra Cycling Faff Time</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""/>
+  </head>
+  <body>
+    <h1>🚴 Ultra Cycling Faff Time</h1>
+    <h4>Find where you spent time stopped (faffing) instead of riding.</h4>
+
+    <span class="description">After realising there was a 20 hour difference between my elapsed time and moving time during my last ultra event. I wanted a tool to be able to see where all that time went!</span>
+
+    <div>
+      <label for="fitFile">Select FIT File:</label>
+      <input type="file" id="fitFile" accept=".fit" />
+      <button id="parseButton" disabled>Parse FIT File</button>
+      <span class="disclaimer">
+        FIT files are processed in your browser. Nothing is sent to the server.<br>
+        Built using <a href="https://developer.garmin.com/fit/overview/" target="_blank">Garmin FIT SDK</a> and <a href="https://leafletjs.com/" target="_blank">Leaflet</a>.<br>
+        <a href="mailto:info@fafftime.com?subject=Faff%20Time%20Feedback">✉️ Send Feedback</a>
+      </span>
+    </div>
+
+    <div id="screenshot">
+      <img src="screenshot.png" width="600"> 
+    </div>
+
+    <div id="activitySummary"></div>
+
+    <div id="mapContainer">
+      <h3>📍 Activity Map</h3>
+      <div id="map"></div>
+    </div>
+
+    <div id="analysisControls">
+      <label>Slow Period Thresholds:</label>
+      <div>
+        <label>
+          <input type="checkbox" id="threshold_2to5" value="2to5"> 2-5 minutes
+        </label>
+        <label>
+          <input type="checkbox" id="threshold_5to10" value="5to10" checked> 5-10 minutes
+        </label>
+        <label>
+          <input type="checkbox" id="threshold_10to30" value="10to30" checked> 10-30 minutes
+        </label>
+        <label>
+          <input type="checkbox" id="threshold_30to60" value="30to60" checked> 30-60 minutes
+        </label>
+        <label>
+          <input type="checkbox" id="threshold_1to2hours" value="1to2hours" checked> 1-2 hours
+        </label>
+        <label>
+          <input type="checkbox" id="threshold_over2hours" value="over2hours" checked> Over 2 hours
+        </label>
+      </div>
+    </div>
+
+    <div id="slowPeriodData"></div>
+    <div id="activityData"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""></script>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CEQ4W86TKD"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-CEQ4W86TKD');
+    </script>
+  </body>
+</html>
