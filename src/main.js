@@ -160,7 +160,7 @@ function extractActivityTimes(sessions, records) {
   }
 
   // If no session data, try to get from records
-  if (!startTime && records.length > 0) {
+  if (records.length > 0) {
     startTime = records[0].timestamp;
     endTime = records[records.length - 1].timestamp;
   }
