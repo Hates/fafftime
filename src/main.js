@@ -8,6 +8,7 @@ const parseButton = document.getElementById('parseButton');
 const activityDataElement = document.getElementById('activityData');
 const activitySummaryElement = document.getElementById('activitySummary');
 const slowPeriodDataElement = document.getElementById('slowPeriodData');
+const timestampGapDataElement = document.getElementById('timestampGapData');
 const analysisControlsElement = document.getElementById('analysisControls');
 const mapContainerElement = document.getElementById('mapContainer');
 
@@ -36,6 +37,7 @@ const RANGE_LABELS = {
 };
 
 const SPEED_THRESHOLD = 0.75; // m/s threshold for slow periods
+const TIMESTAMP_GAP_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 // Enable parse button when file is selected
 fileInput.addEventListener('change', function(event) {
@@ -205,6 +207,9 @@ function displayActivityData(fitData, fileName) {
 
   const { startTime, endTime, movingTime, totalDistance } = extractActivityTimes(sessions, records);
 
+  // Analyze for timestamp gaps (do this early so it's available throughout the function)
+  const timestampGaps = findTimestampGaps(records);
+
   // Display the results
   let html = `<h2>📁 FIT File Analysis: ${fileName}</h2>`;
   let slowPeriodsHtml = ``;
@@ -231,7 +236,7 @@ function displayActivityData(fitData, fileName) {
     html += `</div>`;
 
     const selectedRanges = getSelectedRanges();
-
+    
     // Analyze for slow/stopped periods
     const slowPeriods = findSlowPeriodsWithRanges(records, selectedRanges);
     if (slowPeriods.length > 0) {
@@ -309,6 +314,78 @@ function displayActivityData(fitData, fileName) {
 
   activitySummaryElement.innerHTML = html;
   slowPeriodDataElement.innerHTML = slowPeriodsHtml;
+  
+  // Display timestamp gaps
+  let timestampGapsHtml = '';
+  if (timestampGaps.length > 0) {
+    const totalGapDuration = timestampGaps.reduce((total, gap) => {
+      return total + Math.round(gap.gapDuration / 1000);
+    }, 0);
+    const totalGapFormattedDuration = formatDuration(totalGapDuration);
+    
+    timestampGapsHtml += `
+<div class="timestamp-gaps">
+<h3>⏸️ Recording Gaps (5+ minutes)</h3>
+<p>Found ${timestampGaps.length} gap(s) in recording where no data was captured</p>
+<p><strong>Total gap duration:</strong> ${totalGapFormattedDuration}</p>
+`;
+
+    timestampGaps.forEach((gap, index) => {
+      const startTime = gap.startTime.toLocaleString('en-GB', { 
+        weekday: 'short', 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
+      const endTime = gap.endTime.toLocaleTimeString('en-GB');
+      const durationText = formatDuration(Math.round(gap.gapDuration / 1000));
+
+      // Format distance markers
+      const startDistanceKm = (gap.startDistance / 1000).toFixed(2);
+      const endDistanceKm = (gap.endDistance / 1000).toFixed(2);
+
+      // Get GPS coordinates for Google Maps links
+      let startGoogleMapsLink = '';
+      let endGoogleMapsLink = '';
+      if (gap.startGpsPoint) {
+        const [lat, lng] = gap.startGpsPoint;
+        startGoogleMapsLink = `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="google-maps-link">📍 Start location</a>`;
+      }
+      if (gap.endGpsPoint) {
+        const [lat, lng] = gap.endGpsPoint;
+        endGoogleMapsLink = `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="google-maps-link">📍 End location</a>`;
+      }
+
+      timestampGapsHtml += `
+<div class="timestamp-gap-item">
+<strong>Gap ${index + 1}:</strong> ${startTime} - ${endTime}<br>
+<strong>Duration:</strong> ${durationText}<br>
+<strong>Distance:</strong> ${startDistanceKm} km → ${endDistanceKm} km<br>
+${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
+<div id="gapMap${index}" class="mini-map"></div>
+</div>
+`;
+    });
+
+    timestampGapsHtml += `</div>`;
+
+    // Initialize gap mini maps after DOM is updated
+    setTimeout(() => {
+      initializeGapMiniMaps(timestampGaps);
+    }, 100);
+  } else {
+    timestampGapsHtml += `
+<div class="no-timestamp-gaps">
+<h3>✅ No Recording Gaps Detected</h3>
+<p>No gaps of 5+ minutes found in the recording timeline. Consistent data capture! 📈</p>
+</div>
+`;
+  }
+  
+  timestampGapDataElement.innerHTML = timestampGapsHtml;
 
   // Show some additional info
   let activityHtml = `
@@ -320,6 +397,44 @@ function displayActivityData(fitData, fileName) {
 </div>
 `;
   activityDataElement.innerHTML = activityHtml;
+}
+
+function findTimestampGaps(records) {
+  const gaps = [];
+  
+  for (let i = 1; i < records.length; i++) {
+    const previousRecord = records[i - 1];
+    const currentRecord = records[i];
+    
+    if (!previousRecord.timestamp || !currentRecord.timestamp) {
+      continue;
+    }
+    
+    const timeDifference = currentRecord.timestamp - previousRecord.timestamp;
+    
+    if (timeDifference > TIMESTAMP_GAP_THRESHOLD) {
+      const gapDurationMinutes = Math.round(timeDifference / (1000 * 60));
+      const gapDurationHours = gapDurationMinutes / 60;
+      
+      gaps.push({
+        startTime: previousRecord.timestamp,
+        endTime: currentRecord.timestamp,
+        gapDuration: timeDifference,
+        gapDurationMinutes: gapDurationMinutes,
+        gapDurationHours: gapDurationHours,
+        startDistance: previousRecord.distance || 0,
+        endDistance: currentRecord.distance || 0,
+        startGpsPoint: previousRecord.positionLat && previousRecord.positionLong ? 
+          [previousRecord.positionLat * (180 / Math.pow(2, 31)), 
+           previousRecord.positionLong * (180 / Math.pow(2, 31))] : null,
+        endGpsPoint: currentRecord.positionLat && currentRecord.positionLong ? 
+          [currentRecord.positionLat * (180 / Math.pow(2, 31)), 
+           currentRecord.positionLong * (180 / Math.pow(2, 31))] : null
+      });
+    }
+  }
+  
+  return gaps;
 }
 
 function findSlowPeriodsWithRanges(records, selectedRanges) {
@@ -467,6 +582,100 @@ function initializeSlowPeriodMiniMaps(slowPeriods) {
 
       // Fit to bounds with padding
       miniMap.fitBounds(polyline.getBounds(), { padding: [10, 10] });
+    }
+  });
+}
+
+function initializeGapMiniMaps(timestampGaps) {
+  timestampGaps.forEach((gap, index) => {
+    const mapId = `gapMap${index}`;
+    const mapElement = document.getElementById(mapId);
+
+    if (!mapElement) {
+      return;
+    }
+
+    // Check if we have GPS data for start or end points
+    if (!gap.startGpsPoint && !gap.endGpsPoint) {
+      // If no GPS data, show message in mini map container
+      mapElement.innerHTML = '<div class="no-gps-message">No GPS data available for this gap</div>';
+      return;
+    }
+
+    // Create mini map
+    const miniMap = L.map(mapId, {
+      zoomControl: true,
+      attributionControl: false,
+      dragging: true,
+      scrollWheelZoom: true,
+      doubleClickZoom: true,
+      touchZoom: true
+    });
+
+    // Add tile layer
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: ''
+    }).addTo(miniMap);
+
+    // Collect available GPS points
+    const availablePoints = [];
+    if (gap.startGpsPoint) availablePoints.push(gap.startGpsPoint);
+    if (gap.endGpsPoint) availablePoints.push(gap.endGpsPoint);
+
+    if (availablePoints.length === 1) {
+      // Single point available - center on it
+      const point = availablePoints[0];
+      miniMap.setView(point, 15);
+      
+      // Determine if it's start or end point
+      if (gap.startGpsPoint && !gap.endGpsPoint) {
+        L.marker(point, {
+          icon: L.divIcon({
+            className: 'gap-start-marker',
+            html: '<div class="gap-start-marker">Gap Start</div>',
+            iconSize: [70, 25]
+          })
+        }).addTo(miniMap).bindPopup(`Gap ${index + 1} - Recording stopped here`);
+      } else {
+        L.marker(point, {
+          icon: L.divIcon({
+            className: 'gap-end-marker',
+            html: '<div class="gap-end-marker">Gap End</div>',
+            iconSize: [70, 25]
+          })
+        }).addTo(miniMap).bindPopup(`Gap ${index + 1} - Recording resumed here`);
+      }
+    } else {
+      // Both start and end points available
+      // Add start marker (where recording stopped)
+      L.marker(gap.startGpsPoint, {
+        icon: L.divIcon({
+          className: 'gap-start-marker',
+          html: '<div class="gap-start-marker">Stop</div>',
+          iconSize: [40, 25]
+        })
+      }).addTo(miniMap).bindPopup(`Gap ${index + 1} - Recording stopped`);
+
+      // Add end marker (where recording resumed)
+      L.marker(gap.endGpsPoint, {
+        icon: L.divIcon({
+          className: 'gap-end-marker',
+          html: '<div class="gap-end-marker">Resume</div>',
+          iconSize: [50, 25]
+        })
+      }).addTo(miniMap).bindPopup(`Gap ${index + 1} - Recording resumed`);
+
+      // Add a dashed line between start and end points to show the gap
+      L.polyline([gap.startGpsPoint, gap.endGpsPoint], {
+        color: '#dc3545',
+        weight: 3,
+        opacity: 0.7,
+        dashArray: '10, 10'
+      }).addTo(miniMap);
+
+      // Fit map to show both points
+      const bounds = L.latLngBounds([gap.startGpsPoint, gap.endGpsPoint]);
+      miniMap.fitBounds(bounds, { padding: [20, 20] });
     }
   });
 }
