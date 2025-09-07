@@ -16,6 +16,11 @@ h4 {
   margin-top: 20px;
 }
 
+#screenshot img {
+  border: 1px solid #DDD;
+  padding: 10px;
+}
+
 .description{
   display: block;
   padding-bottom: 30px;
