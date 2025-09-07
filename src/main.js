@@ -110,264 +110,7 @@ showPeriodsOnMapCheckbox.addEventListener('change', function() {
   }
 });
 
-// Utility Functions
-function formatDuration(totalSeconds) {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  
-  if (totalSeconds >= 3600) {
-    return `${hours}h ${minutes}m ${seconds}s`;
-  } else {
-    return `${minutes}m ${seconds}s`;
-  }
-}
-
-function getSelectedRanges() {
-  return Object.entries(thresholdCheckboxes)
-    .filter(([key, checkbox]) => checkbox.checked)
-    .map(([key, checkbox]) => key);
-}
-
-function getSelectedRangeText(selectedRanges) {
-  return selectedRanges.map(range => RANGE_LABELS[range]).join(', ');
-}
-
-function matchesTimeRange(range, durationMinutes, durationHours) {
-  switch (range) {
-    case '2to5': return durationMinutes >= 2 && durationMinutes < 5;
-    case '5to10': return durationMinutes >= 5 && durationMinutes < 10;
-    case '10to30': return durationMinutes >= 10 && durationMinutes < 30;
-    case '30to60': return durationMinutes >= 30 && durationMinutes < 60;
-    case '1to2hours': return durationHours >= 1 && durationHours < 2;
-    case 'over2hours': return durationHours >= 2;
-    default: return false;
-  }
-}
-
-function convertGpsCoordinates(records) {
-  return records
-    .filter(record => record.positionLat && record.positionLong)
-    .map(record => [
-      record.positionLat * (180 / Math.pow(2, 31)),
-      record.positionLong * (180 / Math.pow(2, 31))
-    ]);
-}
-
-// Data Processing Functions
-function extractActivityTimes(sessions, records) {
-  let startTime = null;
-  let endTime = null;
-  let movingTime = null;
-  let totalDistance = null;
-
-  if (sessions.length > 0) {
-    const session = sessions[0];
-    startTime = session.startTime;
-    movingTime = session.totalTimerTime;
-    totalDistance = session.totalDistance;
-
-    if (session.totalElapsedTime) {
-      endTime = new Date(startTime.getTime() + (session.totalElapsedTime * 1000));
-    }
-  }
-
-  // If no session data, try to get from records
-  if (records.length > 0) {
-    startTime = records[0].timestamp;
-    endTime = records[records.length - 1].timestamp;
-  }
-
-  return { startTime, endTime, movingTime, totalDistance };
-}
-
-/**
- * Detects recording gaps in FIT file data by analyzing timestamp differences between consecutive records.
- * Recording gaps occur when a GPS device is turned off, paused, or loses signal for extended periods.
- * Only gaps longer than TIMESTAMP_GAP_THRESHOLD (5 minutes) are considered significant.
- * 
- * @param {Array} records - Array of record messages from FIT file, each containing timestamp and position data
- * @returns {Array} Array of gap objects with timing, location, and distance information
- */
-function findTimestampGaps(records) {
-  const gaps = [];
-  
-  // Iterate through consecutive record pairs to find timestamp jumps
-  for (let i = 1; i < records.length; i++) {
-    const previousRecord = records[i - 1];
-    const currentRecord = records[i];
-    
-    // Skip records that don't have valid timestamps
-    if (!previousRecord.timestamp || !currentRecord.timestamp) {
-      continue;
-    }
-    
-    // Calculate the time difference between consecutive records
-    const timeDifference = currentRecord.timestamp - previousRecord.timestamp;
-    
-    // Check if the gap exceeds our threshold (5 minutes = 300,000ms)
-    if (timeDifference > TIMESTAMP_GAP_THRESHOLD) {
-      // Convert gap duration to more readable units
-      const gapDurationMinutes = Math.round(timeDifference / (1000 * 60));
-      const gapDurationHours = gapDurationMinutes / 60;
-      
-      // Create gap object with comprehensive information for analysis and display
-      gaps.push({
-        startTime: previousRecord.timestamp,  // When recording stopped
-        endTime: currentRecord.timestamp,     // When recording resumed
-        gapDuration: timeDifference,          // Gap duration in milliseconds
-        gapDurationMinutes: gapDurationMinutes,
-        gapDurationHours: gapDurationHours,
-        startDistance: previousRecord.distance || 0,  // Distance when recording stopped
-        endDistance: currentRecord.distance || 0,     // Distance when recording resumed
-        // Convert GPS coordinates from Garmin's semicircle format to decimal degrees
-        // Semicircles are stored as 32-bit signed integers where 2^31 semicircles = 180 degrees
-        startGpsPoint: previousRecord.positionLat && previousRecord.positionLong ? 
-          [previousRecord.positionLat * (180 / Math.pow(2, 31)), 
-           previousRecord.positionLong * (180 / Math.pow(2, 31))] : null,
-        endGpsPoint: currentRecord.positionLat && currentRecord.positionLong ? 
-          [currentRecord.positionLat * (180 / Math.pow(2, 31)), 
-           currentRecord.positionLong * (180 / Math.pow(2, 31))] : null
-      });
-    }
-  }
-  
-  return gaps;
-}
-
-/**
- * Processes a sequence of consecutive slow records to create a slow period object.
- * This function validates that the sequence duration matches the user's selected time ranges,
- * and extracts relevant information like GPS coordinates, distances, and timing.
- * 
- * @param {Array} currentSlowSequence - Array of consecutive FIT records where speed < SPEED_THRESHOLD
- * @param {Array} selectedRanges - Array of user-selected time range filters (e.g., ['5to10', '30to60'])
- * @returns {Object|null} Slow period object with timing and location data, or null if no match
- */
-function processSlowSequence(currentSlowSequence, selectedRanges) {
-  // Early return for empty sequences - no slow period to process
-  if (currentSlowSequence.length === 0) return null;
-  
-  // Extract boundary records to calculate the overall duration of this slow period
-  const startRecord = currentSlowSequence[0];
-  const endRecord = currentSlowSequence[currentSlowSequence.length - 1];
-  const durationMs = endRecord.timestamp - startRecord.timestamp;
-  const durationMinutes = durationMs / (1000 * 60);
-  const durationHours = durationMinutes / 60;
-
-  // Check if this slow period's duration falls within any of the user's selected time ranges
-  // This filtering allows users to focus on specific types of stops (e.g., only long breaks)
-  const matchesRange = selectedRanges.some(range => 
-    matchesTimeRange(range, durationMinutes, durationHours)
-  );
-
-  // Only create a period object if it matches the user's filtering criteria
-  if (matchesRange) {
-    // Extract distance information to show where in the ride this slow period occurred
-    const startDistance = startRecord.distance || 0;
-    const endDistance = endRecord.distance || startDistance; // Fallback if no end distance
-
-    // Return comprehensive slow period object for display and map rendering
-    return {
-      startTime: startRecord.timestamp,    // When the slow period began
-      endTime: endRecord.timestamp,        // When the slow period ended
-      recordCount: currentSlowSequence.length,  // Number of GPS records in this period
-      startDistance: startDistance,        // Distance marker at start of slow period
-      endDistance: endDistance,           // Distance marker at end of slow period
-      gpsPoints: convertGpsCoordinates(currentSlowSequence)  // GPS trail during slow period
-    };
-  }
-  
-  // Return null if this slow period doesn't match the user's selected time ranges
-  return null;
-}
-
-/**
- * Finds slow periods and recording gaps from FIT file records that match the selected time ranges.
- * This function combines two types of "faff time":
- * 1. Slow periods: Consecutive sequences where speed < 0.75 m/s (rider is moving slowly or stopped)
- * 2. Recording gaps: Periods where no data was recorded (device off/paused) for 5+ minutes
- * 
- * The function uses processSlowSequence() to validate and format speed-based slow periods,
- * and findTimestampGaps() to detect recording interruptions.
- * 
- * @param {Array} records - Array of record messages from FIT file containing timestamps, speeds, GPS, etc.
- * @param {Array} selectedRanges - Array of selected time range strings (e.g., ['5to10', '30to60'])
- * @returns {Array} Array of period objects containing both slow periods and recording gaps, sorted chronologically
- */
-function findSlowPeriodsWithRanges(records, selectedRanges) {
-  // Early return if no time ranges are selected for analysis
-  if (selectedRanges.length === 0) return [];
-
-  const slowPeriods = [];
-  let currentSlowSequence = [];
-
-  // PHASE 1: Find consecutive slow periods where speed < SPEED_THRESHOLD (0.75 m/s)
-  // Iterate through all records to build sequences of consecutive slow records
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i];
-    // Use enhancedSpeed if available, fallback to speed, default to 0
-    const speed = record.enhancedSpeed || record.speed || 0;
-
-    if (speed < SPEED_THRESHOLD) {
-      // Record is slow, add it to the current sequence
-      currentSlowSequence.push(record);
-    } else {
-      // Record is fast, process any accumulated slow sequence
-      const slowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
-      if (slowPeriod) {
-        slowPeriods.push(slowPeriod);
-      }
-      // Reset sequence for next potential slow period
-      currentSlowSequence = [];
-    }
-  }
-
-  // Handle the case where the activity ends with slow records
-  // (no fast record to trigger processing of the final sequence)
-  const finalSlowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
-  if (finalSlowPeriod) {
-    slowPeriods.push(finalSlowPeriod);
-  }
-
-  // PHASE 2: Find recording gaps (timestamp jumps > 5 minutes) and add matching ones
-  const timestampGaps = findTimestampGaps(records);
-  timestampGaps.forEach(gap => {
-    const gapDurationMinutes = gap.gapDurationMinutes;
-    const gapDurationHours = gap.gapDurationHours;
-    
-    // Check if this gap's duration falls within any of the selected time ranges
-    const matchesRange = selectedRanges.some(range => 
-      matchesTimeRange(range, gapDurationMinutes, gapDurationHours)
-    );
-
-    if (matchesRange) {
-      // Convert recording gap to the same format as slow periods for unified handling
-      const gapAsPeriod = {
-        startTime: gap.startTime,
-        endTime: gap.endTime,
-        recordCount: 0, // No records exist during a gap
-        startDistance: gap.startDistance,
-        endDistance: gap.endDistance,
-        // Build GPS points array from available start/end coordinates
-        gpsPoints: gap.startGpsPoint && gap.endGpsPoint ? [gap.startGpsPoint, gap.endGpsPoint] : 
-                  gap.startGpsPoint ? [gap.startGpsPoint] :
-                  gap.endGpsPoint ? [gap.endGpsPoint] : [],
-        isGap: true, // Flag to distinguish gaps from speed-based slow periods
-        gapData: gap // Preserve original gap data for specialized rendering
-      };
-      slowPeriods.push(gapAsPeriod);
-    }
-  });
-
-  // Sort all periods (both slow periods and gaps) chronologically by start time
-  // This creates a timeline showing when each period of "faff time" occurred
-  slowPeriods.sort((a, b) => a.startTime - b.startTime);
-
-  return slowPeriods;
-}
-
-// File Loading Functions
+// High-Level Orchestration Functions (Entry Points)
 async function loadExampleFile() {
   try {
     // Clear screenshot and show loading message
@@ -418,7 +161,6 @@ async function loadExampleFile() {
   }
 }
 
-// Display Functions
 function displayActivityData(fitData, fileName) {
   // Find session and record data
   const sessions = fitData.sessionMesgs || [];
@@ -604,7 +346,7 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
   activityDataElement.innerHTML = activityHtml;
 }
 
-// Map Functions
+// Mid-Level Processing Functions (Core Business Logic)
 function initializeMap(fitData) {
   const records = fitData.recordMesgs || [];
   const gpsPoints = convertGpsCoordinates(records);
@@ -885,4 +627,261 @@ function initializeCombinedMiniMaps(periods) {
       }
     }
   });
+}
+
+/**
+ * Finds slow periods and recording gaps from FIT file records that match the selected time ranges.
+ * This function combines two types of "faff time":
+ * 1. Slow periods: Consecutive sequences where speed < 0.75 m/s (rider is moving slowly or stopped)
+ * 2. Recording gaps: Periods where no data was recorded (device off/paused) for 5+ minutes
+ * 
+ * The function uses processSlowSequence() to validate and format speed-based slow periods,
+ * and findTimestampGaps() to detect recording interruptions.
+ * 
+ * @param {Array} records - Array of record messages from FIT file containing timestamps, speeds, GPS, etc.
+ * @param {Array} selectedRanges - Array of selected time range strings (e.g., ['5to10', '30to60'])
+ * @returns {Array} Array of period objects containing both slow periods and recording gaps, sorted chronologically
+ */
+function findSlowPeriodsWithRanges(records, selectedRanges) {
+  // Early return if no time ranges are selected for analysis
+  if (selectedRanges.length === 0) return [];
+
+  const slowPeriods = [];
+  let currentSlowSequence = [];
+
+  // PHASE 1: Find consecutive slow periods where speed < SPEED_THRESHOLD (0.75 m/s)
+  // Iterate through all records to build sequences of consecutive slow records
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    // Use enhancedSpeed if available, fallback to speed, default to 0
+    const speed = record.enhancedSpeed || record.speed || 0;
+
+    if (speed < SPEED_THRESHOLD) {
+      // Record is slow, add it to the current sequence
+      currentSlowSequence.push(record);
+    } else {
+      // Record is fast, process any accumulated slow sequence
+      const slowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
+      if (slowPeriod) {
+        slowPeriods.push(slowPeriod);
+      }
+      // Reset sequence for next potential slow period
+      currentSlowSequence = [];
+    }
+  }
+
+  // Handle the case where the activity ends with slow records
+  // (no fast record to trigger processing of the final sequence)
+  const finalSlowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
+  if (finalSlowPeriod) {
+    slowPeriods.push(finalSlowPeriod);
+  }
+
+  // PHASE 2: Find recording gaps (timestamp jumps > 5 minutes) and add matching ones
+  const timestampGaps = findTimestampGaps(records);
+  timestampGaps.forEach(gap => {
+    const gapDurationMinutes = gap.gapDurationMinutes;
+    const gapDurationHours = gap.gapDurationHours;
+    
+    // Check if this gap's duration falls within any of the selected time ranges
+    const matchesRange = selectedRanges.some(range => 
+      matchesTimeRange(range, gapDurationMinutes, gapDurationHours)
+    );
+
+    if (matchesRange) {
+      // Convert recording gap to the same format as slow periods for unified handling
+      const gapAsPeriod = {
+        startTime: gap.startTime,
+        endTime: gap.endTime,
+        recordCount: 0, // No records exist during a gap
+        startDistance: gap.startDistance,
+        endDistance: gap.endDistance,
+        // Build GPS points array from available start/end coordinates
+        gpsPoints: gap.startGpsPoint && gap.endGpsPoint ? [gap.startGpsPoint, gap.endGpsPoint] : 
+                  gap.startGpsPoint ? [gap.startGpsPoint] :
+                  gap.endGpsPoint ? [gap.endGpsPoint] : [],
+        isGap: true, // Flag to distinguish gaps from speed-based slow periods
+        gapData: gap // Preserve original gap data for specialized rendering
+      };
+      slowPeriods.push(gapAsPeriod);
+    }
+  });
+
+  // Sort all periods (both slow periods and gaps) chronologically by start time
+  // This creates a timeline showing when each period of "faff time" occurred
+  slowPeriods.sort((a, b) => a.startTime - b.startTime);
+
+  return slowPeriods;
+}
+
+// Low-Level Data Processing Functions (Pure Business Logic)
+function extractActivityTimes(sessions, records) {
+  let startTime = null;
+  let endTime = null;
+  let movingTime = null;
+  let totalDistance = null;
+
+  if (sessions.length > 0) {
+    const session = sessions[0];
+    startTime = session.startTime;
+    movingTime = session.totalTimerTime;
+    totalDistance = session.totalDistance;
+
+    if (session.totalElapsedTime) {
+      endTime = new Date(startTime.getTime() + (session.totalElapsedTime * 1000));
+    }
+  }
+
+  // If no session data, try to get from records
+  if (records.length > 0) {
+    startTime = records[0].timestamp;
+    endTime = records[records.length - 1].timestamp;
+  }
+
+  return { startTime, endTime, movingTime, totalDistance };
+}
+
+/**
+ * Detects recording gaps in FIT file data by analyzing timestamp differences between consecutive records.
+ * Recording gaps occur when a GPS device is turned off, paused, or loses signal for extended periods.
+ * Only gaps longer than TIMESTAMP_GAP_THRESHOLD (5 minutes) are considered significant.
+ * 
+ * @param {Array} records - Array of record messages from FIT file, each containing timestamp and position data
+ * @returns {Array} Array of gap objects with timing, location, and distance information
+ */
+function findTimestampGaps(records) {
+  const gaps = [];
+  
+  // Iterate through consecutive record pairs to find timestamp jumps
+  for (let i = 1; i < records.length; i++) {
+    const previousRecord = records[i - 1];
+    const currentRecord = records[i];
+    
+    // Skip records that don't have valid timestamps
+    if (!previousRecord.timestamp || !currentRecord.timestamp) {
+      continue;
+    }
+    
+    // Calculate the time difference between consecutive records
+    const timeDifference = currentRecord.timestamp - previousRecord.timestamp;
+    
+    // Check if the gap exceeds our threshold (5 minutes = 300,000ms)
+    if (timeDifference > TIMESTAMP_GAP_THRESHOLD) {
+      // Convert gap duration to more readable units
+      const gapDurationMinutes = Math.round(timeDifference / (1000 * 60));
+      const gapDurationHours = gapDurationMinutes / 60;
+      
+      // Create gap object with comprehensive information for analysis and display
+      gaps.push({
+        startTime: previousRecord.timestamp,  // When recording stopped
+        endTime: currentRecord.timestamp,     // When recording resumed
+        gapDuration: timeDifference,          // Gap duration in milliseconds
+        gapDurationMinutes: gapDurationMinutes,
+        gapDurationHours: gapDurationHours,
+        startDistance: previousRecord.distance || 0,  // Distance when recording stopped
+        endDistance: currentRecord.distance || 0,     // Distance when recording resumed
+        // Convert GPS coordinates from Garmin's semicircle format to decimal degrees
+        // Semicircles are stored as 32-bit signed integers where 2^31 semicircles = 180 degrees
+        startGpsPoint: previousRecord.positionLat && previousRecord.positionLong ? 
+          [previousRecord.positionLat * (180 / Math.pow(2, 31)), 
+           previousRecord.positionLong * (180 / Math.pow(2, 31))] : null,
+        endGpsPoint: currentRecord.positionLat && currentRecord.positionLong ? 
+          [currentRecord.positionLat * (180 / Math.pow(2, 31)), 
+           currentRecord.positionLong * (180 / Math.pow(2, 31))] : null
+      });
+    }
+  }
+  
+  return gaps;
+}
+
+/**
+ * Processes a sequence of consecutive slow records to create a slow period object.
+ * This function validates that the sequence duration matches the user's selected time ranges,
+ * and extracts relevant information like GPS coordinates, distances, and timing.
+ * 
+ * @param {Array} currentSlowSequence - Array of consecutive FIT records where speed < SPEED_THRESHOLD
+ * @param {Array} selectedRanges - Array of user-selected time range filters (e.g., ['5to10', '30to60'])
+ * @returns {Object|null} Slow period object with timing and location data, or null if no match
+ */
+function processSlowSequence(currentSlowSequence, selectedRanges) {
+  // Early return for empty sequences - no slow period to process
+  if (currentSlowSequence.length === 0) return null;
+  
+  // Extract boundary records to calculate the overall duration of this slow period
+  const startRecord = currentSlowSequence[0];
+  const endRecord = currentSlowSequence[currentSlowSequence.length - 1];
+  const durationMs = endRecord.timestamp - startRecord.timestamp;
+  const durationMinutes = durationMs / (1000 * 60);
+  const durationHours = durationMinutes / 60;
+
+  // Check if this slow period's duration falls within any of the user's selected time ranges
+  // This filtering allows users to focus on specific types of stops (e.g., only long breaks)
+  const matchesRange = selectedRanges.some(range => 
+    matchesTimeRange(range, durationMinutes, durationHours)
+  );
+
+  // Only create a period object if it matches the user's filtering criteria
+  if (matchesRange) {
+    // Extract distance information to show where in the ride this slow period occurred
+    const startDistance = startRecord.distance || 0;
+    const endDistance = endRecord.distance || startDistance; // Fallback if no end distance
+
+    // Return comprehensive slow period object for display and map rendering
+    return {
+      startTime: startRecord.timestamp,    // When the slow period began
+      endTime: endRecord.timestamp,        // When the slow period ended
+      recordCount: currentSlowSequence.length,  // Number of GPS records in this period
+      startDistance: startDistance,        // Distance marker at start of slow period
+      endDistance: endDistance,           // Distance marker at end of slow period
+      gpsPoints: convertGpsCoordinates(currentSlowSequence)  // GPS trail during slow period
+    };
+  }
+  
+  // Return null if this slow period doesn't match the user's selected time ranges
+  return null;
+}
+
+// Utility Functions (Pure Functions, No Side Effects)
+function formatDuration(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  if (totalSeconds >= 3600) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else {
+    return `${minutes}m ${seconds}s`;
+  }
+}
+
+function getSelectedRanges() {
+  return Object.entries(thresholdCheckboxes)
+    .filter(([key, checkbox]) => checkbox.checked)
+    .map(([key, checkbox]) => key);
+}
+
+function getSelectedRangeText(selectedRanges) {
+  return selectedRanges.map(range => RANGE_LABELS[range]).join(', ');
+}
+
+function matchesTimeRange(range, durationMinutes, durationHours) {
+  switch (range) {
+    case '2to5': return durationMinutes >= 2 && durationMinutes < 5;
+    case '5to10': return durationMinutes >= 5 && durationMinutes < 10;
+    case '10to30': return durationMinutes >= 10 && durationMinutes < 30;
+    case '30to60': return durationMinutes >= 30 && durationMinutes < 60;
+    case '1to2hours': return durationHours >= 1 && durationHours < 2;
+    case 'over2hours': return durationHours >= 2;
+    default: return false;
+  }
+}
+
+function convertGpsCoordinates(records) {
+  return records
+    .filter(record => record.positionLat && record.positionLong)
+    .map(record => [
+      record.positionLat * (180 / Math.pow(2, 31)),
+      record.positionLong * (180 / Math.pow(2, 31))
+    ]);
 }
