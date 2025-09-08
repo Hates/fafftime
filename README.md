@@ -2,6 +2,8 @@
 
 Ultra Cycling faff time Analyser - Find where you spent time stopped instead of riding. A web-based tool for analyzing Garmin FIT files, built with the official Garmin FIT SDK. This application allows you to upload FIT files and analyze activity data including route visualization, slow/stopped periods detection, and detailed activity metrics.
 
+Use the tool live [https://fafftime.com](https://fafftime.com)
+
 > 🤖 This project was generated with the help of [Claude Code](https://claude.ai/code)
 
 ## Screenshot
