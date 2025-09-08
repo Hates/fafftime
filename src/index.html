@@ -83,6 +83,89 @@
     <div id="timestampGapData"></div>
     <div id="activityData"></div>
 
+    <!-- Templates -->
+    <template id="loading-template">
+      <p data-field="message"></p>
+    </template>
+
+    <template id="error-template">
+      <p class="error-message" data-field="message"></p>
+    </template>
+
+    <template id="activity-summary-template">
+      <h2 data-field="title"></h2>
+    </template>
+
+    <template id="slow-periods-container-template">
+      <div class="slow-periods">
+        <h3>🐌 Slow Periods & Recording Gaps</h3>
+        <p>Found <span data-field="total-periods"></span> period(s) in selected ranges (<span data-field="range-text"></span>)</p>
+        <p><strong>Breakdown:</strong> <span data-field="slow-count"></span> slow period(s) (speed &lt; 1 m/s), <span data-field="gap-count"></span> recording gap(s)</p>
+        <p><strong>Total duration:</strong> <span data-field="total-duration"></span></p>
+        <div data-field="periods-list"></div>
+      </div>
+    </template>
+
+    <template id="recording-gap-item-template">
+      <div class="timestamp-gap-item">
+        <strong data-field="title"></strong> <span data-field="time-range"></span><br>
+        <strong>Duration:</strong> <span data-field="duration"></span> (no data recorded)<br>
+        <strong>Distance:</strong> <span data-field="distance-range"></span><br>
+        <span data-field="location-links"></span><br>
+        <div data-field="mini-map" class="mini-map"></div>
+      </div>
+    </template>
+
+    <template id="slow-period-item-template">
+      <div class="slow-period-item">
+        <strong data-field="title"></strong> <span data-field="time-range"></span><br>
+        <strong>Duration:</strong> <span data-field="duration"></span> (<span data-field="record-count"></span> records)<br>
+        <strong>Distance marker:</strong> <span data-field="distance"></span> km<span data-field="location-link"></span><br>
+        <div data-field="mini-map" class="mini-map"></div>
+      </div>
+    </template>
+
+    <template id="no-slow-periods-template">
+      <div class="no-slow-periods">
+        <h3>✅ No Slow Periods or Recording Gaps Detected</h3>
+        <p>No periods found in selected ranges (<span data-field="range-text"></span>) where speed was &lt; 1 m/s or where recording gaps occurred.</p>
+        <p>Great job maintaining your pace and consistent recording! 🚴‍♀️💨</p>
+      </div>
+    </template>
+
+    <template id="google-maps-link-template">
+      <a data-field="href" target="_blank" class="google-maps-link" data-field="text">📍 View on Google Maps</a>
+    </template>
+
+    <template id="no-gps-message-template">
+      <div class="no-gps-message" data-field="message"></div>
+    </template>
+
+    <template id="activity-times-template">
+      <div class="activity-times">
+        <h3>⏰ Activity Times</h3>
+        <p><strong>Start Time:</strong> <span data-field="start-time"></span></p>
+        <p><strong>End Time:</strong> <span data-field="end-time"></span></p>
+        <p><strong>Duration:</strong> <span data-field="duration"></span></p>
+        <p><strong>Est. Stopped Time:</strong> <span data-field="stopped-time"></span></p>
+        <p><strong>Est. Moving Time:</strong> <span data-field="moving-time"></span></p>
+        <p data-field="distance-info" style="display:none;"><strong>Total Distance:</strong> <span data-field="distance"></span></p>
+      </div>
+    </template>
+
+    <template id="warning-message-template">
+      <p class="warning-message" data-field="message"></p>
+    </template>
+
+    <template id="file-summary-template">
+      <div class="file-summary">
+        <h3>📊 File Summary</h3>
+        <p><strong>Total Records:</strong> <span data-field="total-records"></span></p>
+        <p><strong>Sessions Found:</strong> <span data-field="sessions-found"></span></p>
+        <p><strong>Timestamp Gaps:</strong> <span data-field="timestamp-gaps"></span></p>
+      </div>
+    </template>
+
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="

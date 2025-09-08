@@ -1,7 +1,10 @@
 import { Decoder, Stream, Profile, Utils } from '@garmin/fitsdk';
 import './styles.css';
 
-// Constants
+// =============================================================================
+// CONSTANTS & CONFIGURATION
+// =============================================================================
+
 const RANGE_LABELS = {
   '2to5': '2-5 minutes',
   '5to10': '5-10 minutes',
@@ -14,7 +17,10 @@ const RANGE_LABELS = {
 const SPEED_THRESHOLD = 0.75; // m/s threshold for slow periods
 const TIMESTAMP_GAP_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-// DOM Elements
+// =============================================================================
+// DOM ELEMENTS & GLOBAL STATE
+// =============================================================================
+
 const fileInput = document.getElementById('fitFile');
 const screenshot = document.getElementById('screenshot');
 const parseButton = document.getElementById('parseButton');
@@ -42,25 +48,35 @@ let currentFileName = null;
 let activityMap = null;
 let currentSlowPeriods = null;
 
-// Event Listeners
+// =============================================================================
+// APPLICATION ENTRY POINTS (EVENT HANDLERS & INITIALIZATION)
+// =============================================================================
+
+// File input change handler
 fileInput.addEventListener('change', function(event) {
   const file = event.target.files[0];
   parseButton.disabled = !file;
 });
 
+// Example file load handler
 loadExampleFileLink.addEventListener('click', async function(event) {
   event.preventDefault();
   await loadExampleFile();
 });
 
+// Main file parsing handler
 parseButton.addEventListener('click', async function() {
-  screenshot.innerHTML = '';
+  clearElement(screenshot);
 
   const file = fileInput.files[0];
   if (!file) return;
 
   try {
-    activityDataElement.innerHTML = '<p>📊 Parsing FIT file...</p>';
+    clearElement(activityDataElement);
+    const loadingElement = createElementFromTemplate('loading-template', {
+      message: '📊 Parsing FIT file...'
+    });
+    activityDataElement.appendChild(loadingElement);
 
     // Read file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -91,11 +107,16 @@ parseButton.addEventListener('click', async function() {
     initializeMap(fitData);
 
   } catch (error) {
-    activityDataElement.innerHTML = `<p class="error-message">❌ Error parsing FIT file: ${error.message}</p>`;
+    clearElement(activityDataElement);
+    const errorElement = createElementFromTemplate('error-template', {
+      message: `❌ Error parsing FIT file: ${error.message}`
+    });
+    activityDataElement.appendChild(errorElement);
     console.error('FIT parsing error:', error);
   }
 });
 
+// Threshold filter change handlers
 Object.values(thresholdCheckboxes).forEach(checkbox => {
   checkbox.addEventListener('change', function() {
     if (currentFitData && currentFileName) {
@@ -104,18 +125,29 @@ Object.values(thresholdCheckboxes).forEach(checkbox => {
   });
 });
 
+// Map overlay toggle handler
 showPeriodsOnMapCheckbox.addEventListener('change', function() {
   if (activityMap && currentSlowPeriods) {
     updateMapOverlays();
   }
 });
 
-// High-Level Orchestration Functions (Entry Points)
+// =============================================================================
+// HIGH-LEVEL ORCHESTRATION FUNCTIONS
+// =============================================================================
+
+/**
+ * Loads and processes the example FIT file from the server
+ */
 async function loadExampleFile() {
   try {
     // Clear screenshot and show loading message
-    screenshot.innerHTML = '';
-    activityDataElement.innerHTML = '<p>📊 Loading example file...</p>';
+    clearElement(screenshot);
+    clearElement(activityDataElement);
+    const loadingElement = createElementFromTemplate('loading-template', {
+      message: '📊 Loading example file...'
+    });
+    activityDataElement.appendChild(loadingElement);
 
     // Fetch the example file
     const response = await fetch('GreatBritishEscapades2025.fit');
@@ -156,11 +188,19 @@ async function loadExampleFile() {
     parseButton.disabled = false;
 
   } catch (error) {
-    activityDataElement.innerHTML = `<p class="error-message">❌ Error loading example file: ${error.message}</p>`;
+    clearElement(activityDataElement);
+    const errorElement = createElementFromTemplate('error-template', {
+      message: `❌ Error loading example file: ${error.message}`
+    });
+    activityDataElement.appendChild(errorElement);
     console.error('Example file loading error:', error);
   }
 }
 
+/**
+ * Main function to process FIT data and update the UI
+ * Orchestrates data extraction, analysis, and display
+ */
 function displayActivityData(fitData, fileName) {
   // Find session and record data
   const sessions = fitData.sessionMesgs || [];
@@ -173,8 +213,10 @@ function displayActivityData(fitData, fileName) {
   const timestampGaps = findTimestampGaps(records);
 
   // Display the results
-  let activitySummaryHtml = `<h2>📁 FIT File Analysis: ${fileName}</h2>`;
-  let slowPeriodsDataHtml = ``;
+  const activitySummaryElement = createElementFromTemplate('activity-summary-template', {
+    title: `📁 FIT File Analysis: ${fileName}`
+  });
+  let slowPeriodsDataElement = null;
 
   if (startTime && endTime) {
     const duration = Math.round((endTime - startTime) / 1000);
@@ -186,106 +228,16 @@ function displayActivityData(fitData, fileName) {
     const slowPeriods = findSlowPeriodsWithRanges(records, selectedRanges);
     currentSlowPeriods = slowPeriods; // Store for map overlay
     
+    const selectedRangeText = getSelectedRangeText(selectedRanges);
+    slowPeriodsDataElement = createSlowPeriodsDisplay(slowPeriods, selectedRangeText);
+
     if (slowPeriods.length > 0) {
-      // Separate slow periods and gaps for statistics
-      const actualSlowPeriods = slowPeriods.filter(period => !period.isGap);
-      const gapPeriods = slowPeriods.filter(period => period.isGap);
-      
-      // Calculate total duration of all periods
-      const totalSlowDuration = slowPeriods.reduce((total, period) => {
-        return total + Math.round((period.endTime - period.startTime) / 1000);
-      }, 0);
-
-      const totalSlowFormattedDuration = formatDuration(totalSlowDuration);
-      const selectedRangeText = getSelectedRangeText(selectedRanges);
-
-      slowPeriodsDataHtml += `
-<div class="slow-periods">
-<h3>🐌 Slow Periods & Recording Gaps</h3>
-<p>Found ${slowPeriods.length} period(s) in selected ranges (${selectedRangeText})</p>
-<p><strong>Breakdown:</strong> ${actualSlowPeriods.length} slow period(s) (speed &lt; 1 m/s), ${gapPeriods.length} recording gap(s)</p>
-<p><strong>Total duration:</strong> ${totalSlowFormattedDuration}</p>
-`;
-
-      slowPeriods.forEach((period, index) => {
-        const startTime = period.startTime.toLocaleString('en-GB', { 
-          weekday: 'short', 
-          year: 'numeric', 
-          month: 'short', 
-          day: 'numeric',
-          hour: '2-digit', 
-          minute: '2-digit', 
-          second: '2-digit' 
-        });
-        const endTime = period.endTime.toLocaleTimeString('en-GB');
-        const duration = Math.round((period.endTime - period.startTime) / 1000);
-        const durationText = formatDuration(duration);
-
-        // Format distance marker
-        const startDistanceKm = (period.startDistance / 1000).toFixed(2);
-
-        if (period.isGap) {
-          // Recording gap display
-          const endDistanceKm = (period.endDistance / 1000).toFixed(2);
-          
-          // Get GPS coordinates for Google Maps links
-          let startGoogleMapsLink = '';
-          let endGoogleMapsLink = '';
-          if (period.gapData.startGpsPoint) {
-            const [lat, lng] = period.gapData.startGpsPoint;
-            startGoogleMapsLink = `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="google-maps-link">📍 Start location</a>`;
-          }
-          if (period.gapData.endGpsPoint) {
-            const [lat, lng] = period.gapData.endGpsPoint;
-            endGoogleMapsLink = `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="google-maps-link">📍 End location</a>`;
-          }
-
-          slowPeriodsDataHtml += `
-<div class="timestamp-gap-item">
-<strong>⏸️ Recording Gap ${index + 1}:</strong> ${startTime} - ${endTime}<br>
-<strong>Duration:</strong> ${durationText} (no data recorded)<br>
-<strong>Distance:</strong> ${startDistanceKm} km → ${endDistanceKm} km<br>
-${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
-<div id="miniMap${index}" class="mini-map"></div>
-</div>
-`;
-        } else {
-          // Regular slow period display
-          let googleMapsLink = '';
-          if(period.gpsPoints[0]) {
-            const lat = period.gpsPoints[0][0];
-            const lng = period.gpsPoints[0][1];
-            googleMapsLink = `<br><strong>Location:</strong> <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="google-maps-link">📍 View on Google Maps</a>`;
-          }
-
-          slowPeriodsDataHtml += `
-<div class="slow-period-item">
-<strong>🐌 Slow Period ${index + 1}:</strong> ${startTime} - ${endTime}<br>
-<strong>Duration:</strong> ${durationText} (${period.recordCount} records)<br>
-<strong>Distance marker:</strong> ${startDistanceKm} km${googleMapsLink}<br>
-<div id="miniMap${index}" class="mini-map"></div>
-</div>
-`;
-        }
-      });
-
-      slowPeriodsDataHtml += `</div>`;
-
       // Initialize mini maps after DOM is updated
       setTimeout(() => {
         initializeCombinedMiniMaps(slowPeriods);
       }, 100);
     } else {
       currentSlowPeriods = []; // No periods found
-      const selectedRangeText = getSelectedRangeText(selectedRanges);
-      
-      slowPeriodsDataHtml += `
-<div class="no-slow-periods">
-<h3>✅ No Slow Periods or Recording Gaps Detected</h3>
-<p>No periods found in selected ranges (${selectedRangeText}) where speed was &lt; 1 m/s or where recording gaps occurred.</p>
-<p>Great job maintaining your pace and consistent recording! 🚴‍♀️💨</p>
-</div>
-`;
     }
 
     // Calculate estimated moving time
@@ -300,24 +252,32 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
     const formattedEstimatedMovingTime = formatDuration(estimatedMovingTime);
     const formattedTotalSlowDurationTime = formatDuration(totalSlowDuration);
 
-    activitySummaryHtml += `
-<div class="activity-times">
-<h3>⏰ Activity Times</h3>
-<p><strong>Start Time:</strong> ${startTime.toLocaleString()}</p>
-<p><strong>End Time:</strong> ${endTime.toLocaleString()}</p>
-<p><strong>Duration:</strong> ${formattedDuration}</p>
-<p><strong>Est. Stopped Time:</strong> ${formattedTotalSlowDurationTime}</p>
-<p><strong>Est. Moving Time:</strong> ${formattedEstimatedMovingTime}</p>
-`;
+    // Create activity times element
+    const activityTimesData = {
+      'start-time': startTime.toLocaleString(),
+      'end-time': endTime.toLocaleString(),
+      'duration': formattedDuration,
+      'stopped-time': formattedTotalSlowDurationTime,
+      'moving-time': formattedEstimatedMovingTime
+    };
 
     // Add distance if available
     if (totalDistance != null) {
       const distanceKm = (totalDistance / 1000).toFixed(2);
       const distanceMiles = (totalDistance * 0.000621371).toFixed(2);
-      activitySummaryHtml += `<p><strong>Total Distance:</strong> ${distanceKm} km (${distanceMiles} miles)</p>`;
+      activityTimesData.distance = `${distanceKm} km (${distanceMiles} miles)`;
     }
 
-    activitySummaryHtml += `</div>`;
+    const activityTimesElement = createElementFromTemplate('activity-times-template', activityTimesData);
+    
+    // Show/hide distance info based on availability
+    const distanceInfo = activityTimesElement.querySelector('[data-field="distance-info"]');
+    if (totalDistance != null) {
+      distanceInfo.style.display = 'block';
+    }
+    
+    // Append to activity summary
+    activitySummaryElement.appendChild(activityTimesElement);
 
     
     // Update map overlays if map is initialized
@@ -325,28 +285,44 @@ ${startGoogleMapsLink} ${endGoogleMapsLink ? '| ' + endGoogleMapsLink : ''}<br>
       updateMapOverlays();
     }
   } else {
-    activitySummaryHtml += '<p class="warning-message">⚠️ Could not determine start/end times from this FIT file.</p>';
+    const warningElement = createElementFromTemplate('warning-message-template', {
+      message: '⚠️ Could not determine start/end times from this FIT file.'
+    });
+    activitySummaryElement.appendChild(warningElement);
   }
 
-  activitySummaryElement.innerHTML = activitySummaryHtml;
-  slowPeriodDataElement.innerHTML = slowPeriodsDataHtml;
+  // Clear and populate elements
+  const activitySummaryDOMElement = document.getElementById('activitySummary');
+  clearElement(activitySummaryDOMElement);
+  activitySummaryDOMElement.appendChild(activitySummaryElement);
+  
+  const slowPeriodDOMElement = document.getElementById('slowPeriodData');
+  clearElement(slowPeriodDOMElement);
+  if (slowPeriodsDataElement) {
+    slowPeriodDOMElement.appendChild(slowPeriodsDataElement);
+  }
   
   // Clear the timestamp gap section since it's now combined
-  timestampGapDataElement.innerHTML = '';
+  clearElement(timestampGapDataElement);
 
   // Show some additional info
-  let activityHtml = `
-<div class="file-summary">
-<h3>📊 File Summary</h3>
-<p><strong>Message Types Found:</strong> ${Object.keys(fitData).join(', ')}</p>
-<p><strong>Sessions:</strong> ${sessions.length}</p>
-<p><strong>Records:</strong> ${records.length}</p>
-</div>
-`;
-  activityDataElement.innerHTML = activityHtml;
+  const fileSummaryElement = createElementFromTemplate('file-summary-template', {
+    'total-records': records.length,
+    'sessions-found': sessions.length,
+    'timestamp-gaps': timestampGaps.length
+  });
+  
+  clearElement(activityDataElement);
+  activityDataElement.appendChild(fileSummaryElement);
 }
 
-// Mid-Level Processing Functions (Core Business Logic)
+// =============================================================================
+// MID-LEVEL PROCESSING FUNCTIONS (UI & MAP COORDINATION)
+// =============================================================================
+
+/**
+ * Initializes the main activity map with GPS route and markers
+ */
 function initializeMap(fitData) {
   const records = fitData.recordMesgs || [];
   const gpsPoints = convertGpsCoordinates(records);
@@ -402,6 +378,9 @@ function initializeMap(fitData) {
   updateMapOverlays();
 }
 
+/**
+ * Updates map overlays to show/hide slow periods and recording gaps
+ */
 function updateMapOverlays() {
   if (!activityMap || !currentSlowPeriods) {
     return;
@@ -474,6 +453,9 @@ function updateMapOverlays() {
   });
 }
 
+/**
+ * Creates mini-maps for individual slow periods and recording gaps
+ */
 function initializeCombinedMiniMaps(periods) {
   periods.forEach((period, index) => {
     const mapId = `miniMap${index}`;
@@ -489,7 +471,11 @@ function initializeCombinedMiniMaps(periods) {
       
       // Check if we have GPS data for start or end points
       if (!gap.startGpsPoint && !gap.endGpsPoint) {
-        mapElement.innerHTML = '<div class="no-gps-message">No GPS data available for this gap</div>';
+        clearElement(mapElement);
+        const noGpsElement = createElementFromTemplate('no-gps-message-template', {
+          message: 'No GPS data available for this gap'
+        });
+        mapElement.appendChild(noGpsElement);
         return;
       }
 
@@ -571,7 +557,11 @@ function initializeCombinedMiniMaps(periods) {
     } else {
       // Handle regular slow period (existing logic)
       if (period.gpsPoints.length === 0) {
-        mapElement.innerHTML = '<div class="no-gps-message">No GPS data for this period</div>';
+        clearElement(mapElement);
+        const noGpsElement = createElementFromTemplate('no-gps-message-template', {
+          message: 'No GPS data for this period'
+        });
+        mapElement.appendChild(noGpsElement);
         return;
       }
 
@@ -628,6 +618,10 @@ function initializeCombinedMiniMaps(periods) {
     }
   });
 }
+
+// =============================================================================
+// DATA ANALYSIS FUNCTIONS (CORE BUSINESS LOGIC)
+// =============================================================================
 
 /**
  * Finds slow periods and recording gaps from FIT file records that match the selected time ranges.
@@ -714,7 +708,9 @@ function findSlowPeriodsWithRanges(records, selectedRanges) {
   return slowPeriods;
 }
 
-// Low-Level Data Processing Functions (Pure Business Logic)
+/**
+ * Extracts basic activity timing and distance information from sessions and records
+ */
 function extractActivityTimes(sessions, records) {
   let startTime = null;
   let endTime = null;
@@ -842,7 +838,13 @@ function processSlowSequence(currentSlowSequence, selectedRanges) {
   return null;
 }
 
-// Utility Functions (Pure Functions, No Side Effects)
+// =============================================================================
+// UTILITY FUNCTIONS (PURE FUNCTIONS)
+// =============================================================================
+
+/**
+ * Formats a duration in seconds to a human-readable string
+ */
 function formatDuration(totalSeconds) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -855,16 +857,25 @@ function formatDuration(totalSeconds) {
   }
 }
 
+/**
+ * Gets the currently selected time range filters from checkboxes
+ */
 function getSelectedRanges() {
   return Object.entries(thresholdCheckboxes)
     .filter(([key, checkbox]) => checkbox.checked)
     .map(([key, checkbox]) => key);
 }
 
+/**
+ * Converts selected time range keys to human-readable text
+ */
 function getSelectedRangeText(selectedRanges) {
   return selectedRanges.map(range => RANGE_LABELS[range]).join(', ');
 }
 
+/**
+ * Checks if a duration matches a specific time range category
+ */
 function matchesTimeRange(range, durationMinutes, durationHours) {
   switch (range) {
     case '2to5': return durationMinutes >= 2 && durationMinutes < 5;
@@ -877,6 +888,9 @@ function matchesTimeRange(range, durationMinutes, durationHours) {
   }
 }
 
+/**
+ * Converts GPS coordinates from Garmin's semicircle format to decimal degrees
+ */
 function convertGpsCoordinates(records) {
   return records
     .filter(record => record.positionLat && record.positionLong)
@@ -884,4 +898,176 @@ function convertGpsCoordinates(records) {
       record.positionLat * (180 / Math.pow(2, 31)),
       record.positionLong * (180 / Math.pow(2, 31))
     ]);
+}
+
+// =============================================================================
+// TEMPLATE & DOM HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Creates a DOM element from a template and populates it with data
+ */
+function createElementFromTemplate(templateId, data = {}) {
+  const template = document.getElementById(templateId);
+  if (!template) {
+    console.error(`Template not found: ${templateId}`);
+    return null;
+  }
+  
+  const clone = template.content.cloneNode(true);
+  
+  // Fill in data fields
+  Object.keys(data).forEach(key => {
+    const elements = clone.querySelectorAll(`[data-field="${key}"]`);
+    elements.forEach(element => {
+      if (key === 'href') {
+        element.href = data[key];
+      } else if (data[key] instanceof HTMLElement || data[key] instanceof DocumentFragment) {
+        element.appendChild(data[key]);
+      } else {
+        element.textContent = data[key];
+      }
+    });
+  });
+  
+  return clone;
+}
+
+/**
+ * Removes all child elements from a DOM element
+ */
+function clearElement(element) {
+  while (element.firstChild) {
+    element.removeChild(element.firstChild);
+  }
+}
+
+/**
+ * Creates a Google Maps link element
+ */
+function createGoogleMapsLink(lat, lng, text = '📍 View on Google Maps') {
+  const link = document.createElement('a');
+  link.href = `https://www.google.com/maps?q=${lat},${lng}`;
+  link.target = '_blank';
+  link.className = 'google-maps-link';
+  link.textContent = text;
+  return link;
+}
+
+/**
+ * Creates the complex slow periods display UI using templates
+ */
+function createSlowPeriodsDisplay(slowPeriods, selectedRangeText) {
+  if (slowPeriods.length === 0) {
+    return createElementFromTemplate('no-slow-periods-template', {
+      'range-text': selectedRangeText
+    });
+  }
+
+  // Separate slow periods and gaps for statistics
+  const actualSlowPeriods = slowPeriods.filter(period => !period.isGap);
+  const gapPeriods = slowPeriods.filter(period => period.isGap);
+  
+  // Calculate total duration of all periods
+  const totalSlowDuration = slowPeriods.reduce((total, period) => {
+    return total + Math.round((period.endTime - period.startTime) / 1000);
+  }, 0);
+
+  const totalSlowFormattedDuration = formatDuration(totalSlowDuration);
+
+  // Create the container
+  const containerElement = createElementFromTemplate('slow-periods-container-template', {
+    'total-periods': slowPeriods.length,
+    'range-text': selectedRangeText,
+    'slow-count': actualSlowPeriods.length,
+    'gap-count': gapPeriods.length,
+    'total-duration': totalSlowFormattedDuration
+  });
+
+  // Create individual period elements
+  const periodsListContainer = containerElement.querySelector('[data-field="periods-list"]');
+  
+  slowPeriods.forEach((period, index) => {
+    const startTime = period.startTime.toLocaleString('en-GB', { 
+      weekday: 'short', 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
+    const endTime = period.endTime.toLocaleTimeString('en-GB');
+    const duration = Math.round((period.endTime - period.startTime) / 1000);
+    const durationText = formatDuration(duration);
+    const startDistanceKm = (period.startDistance / 1000).toFixed(2);
+
+    if (period.isGap) {
+      // Recording gap display
+      const endDistanceKm = (period.endDistance / 1000).toFixed(2);
+      
+      // Create location links
+      const locationLinks = document.createElement('span');
+      if (period.gapData.startGpsPoint) {
+        const [lat, lng] = period.gapData.startGpsPoint;
+        const startLink = createGoogleMapsLink(lat, lng, '📍 Start location');
+        locationLinks.appendChild(startLink);
+      }
+      if (period.gapData.endGpsPoint) {
+        if (locationLinks.hasChildNodes()) {
+          locationLinks.appendChild(document.createTextNode(' | '));
+        }
+        const [lat, lng] = period.gapData.endGpsPoint;
+        const endLink = createGoogleMapsLink(lat, lng, '📍 End location');
+        locationLinks.appendChild(endLink);
+      }
+
+      const gapElement = createElementFromTemplate('recording-gap-item-template', {
+        'title': `⏸️ Recording Gap ${index + 1}:`,
+        'time-range': `${startTime} - ${endTime}`,
+        'duration': durationText,
+        'distance-range': `${startDistanceKm} km → ${endDistanceKm} km`,
+        'location-links': locationLinks
+      });
+
+      // Set up mini map
+      const miniMapElement = gapElement.querySelector('[data-field="mini-map"]');
+      miniMapElement.id = `miniMap${index}`;
+
+      periodsListContainer.appendChild(gapElement);
+    } else {
+      // Regular slow period display
+      let locationLink = '';
+      if (period.gpsPoints[0]) {
+        const lat = period.gpsPoints[0][0];
+        const lng = period.gpsPoints[0][1];
+        const linkElement = createGoogleMapsLink(lat, lng);
+        const locationSpan = document.createElement('span');
+        locationSpan.appendChild(document.createTextNode('\n'));
+        const strongElement = document.createElement('strong');
+        strongElement.textContent = 'Location:';
+        locationSpan.appendChild(strongElement);
+        locationSpan.appendChild(document.createTextNode(' '));
+        locationSpan.appendChild(linkElement);
+        locationLink = locationSpan;
+      }
+
+      const slowPeriodElement = createElementFromTemplate('slow-period-item-template', {
+        'title': `🐌 Slow Period ${index + 1}:`,
+        'time-range': `${startTime} - ${endTime}`,
+        'duration': durationText,
+        'record-count': period.recordCount,
+        'distance': startDistanceKm,
+        'location-link': locationLink
+      });
+
+      // Set up mini map
+      const miniMapElement = slowPeriodElement.querySelector('[data-field="mini-map"]');
+      miniMapElement.id = `miniMap${index}`;
+
+      periodsListContainer.appendChild(slowPeriodElement);
+    }
+  });
+
+  return containerElement;
 }
