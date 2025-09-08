@@ -1,3 +1,7 @@
+/* =============================================================================
+   BASE STYLES & TYPOGRAPHY
+   ============================================================================= */
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -8,20 +12,15 @@ h4 {
   margin-bottom: 5px;
 }
 
+/* =============================================================================
+   UTILITY CLASSES
+   ============================================================================= */
+
 .red {
   color: #cb0000;
 }
 
-#screenshot {
-  margin-top: 20px;
-}
-
-#screenshot img {
-  border: 1px solid #DDD;
-  padding: 10px;
-}
-
-.description{
+.description {
   display: block;
   padding-bottom: 10px;
 }
@@ -35,6 +34,18 @@ h4 {
 .disclaimer a {
   color: #333;
 }
+
+.error-message {
+  color: red;
+}
+
+.warning-message {
+  color: orange;
+}
+
+/* =============================================================================
+   FILE SELECTION & UPLOAD
+   ============================================================================= */
 
 .file-selection-box {
   border: 2px solid #0066cc;
@@ -52,6 +63,40 @@ h4 {
 
 .file-selection-box button {
   margin-left: 10px;
+}
+
+#parseButton {
+  background: linear-gradient(135deg, #0066cc, #004499);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#parseButton:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0052a3, #003366);
+  box-shadow: 0 4px 8px rgba(0, 102, 204, 0.3);
+  transform: translateY(-1px);
+}
+
+#parseButton:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+}
+
+#parseButton:disabled {
+  background: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
 .example-file-link {
@@ -75,15 +120,22 @@ h4 {
   text-decoration: none;
 }
 
-#mapContainer {
-  display: none;
-  margin: 15px 0;
+/* =============================================================================
+   SCREENSHOT & DOCUMENTATION
+   ============================================================================= */
+
+#screenshot {
+  margin-top: 20px;
 }
 
-#map {
-  height: 400px;
-  border-radius: 5px;
+#screenshot img {
+  border: 1px solid #DDD;
+  padding: 10px;
 }
+
+/* =============================================================================
+   ANALYSIS CONTROLS
+   ============================================================================= */
 
 #analysisControls {
   display: none;
@@ -102,46 +154,24 @@ h4 {
   margin-right: 15px;
 }
 
-.error-message {
-  color: red;
+.map-overlay-control {
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
 }
 
-.warning-message {
-  color: orange;
+/* =============================================================================
+   MAP COMPONENTS
+   ============================================================================= */
+
+#mapContainer {
+  display: none;
+  margin: 15px 0;
 }
 
-.activity-times {
-  background: #f0f0f0;
-  padding: 15px;
+#map {
+  height: 400px;
   border-radius: 5px;
-  margin: 10px 0;
-}
-
-.activity-times p {
-  margin: 5px 0;
-}
-
-.slow-periods {
-  background: #fff3cd;
-  padding: 15px;
-  border-radius: 5px;
-  margin: 10px 0;
-  border-left: 4px solid #ffc107;
-}
-
-.no-slow-periods {
-  background: #d1edff;
-  padding: 15px;
-  border-radius: 5px;
-  margin: 10px 0;
-  border-left: 4px solid #0066cc;
-}
-
-.slow-period-item {
-  margin: 10px 0;
-  padding: 10px;
-  background: rgba(255,255,255,0.7);
-  border-radius: 3px;
 }
 
 .mini-map {
@@ -150,13 +180,6 @@ h4 {
   margin-top: 10px;
   border-radius: 3px;
   border: 1px solid #ddd;
-}
-
-.file-summary {
-  background: #e8f4f8;
-  padding: 15px;
-  border-radius: 5px;
-  margin: 10px 0;
 }
 
 .google-maps-link {
@@ -172,6 +195,10 @@ h4 {
   color: #666;
   font-style: italic;
 }
+
+/* =============================================================================
+   MAP MARKERS
+   ============================================================================= */
 
 .start-marker {
   background: #28a745;
@@ -197,29 +224,6 @@ h4 {
   justify-content: center;
   font-size: 12px;
   font-weight: bold;
-}
-
-.timestamp-gaps {
-  background: #f8d7da;
-  padding: 15px;
-  border-radius: 5px;
-  margin: 10px 0;
-  border-left: 4px solid #dc3545;
-}
-
-.no-timestamp-gaps {
-  background: #d4edda;
-  padding: 15px;
-  border-radius: 5px;
-  margin: 10px 0;
-  border-left: 4px solid #28a745;
-}
-
-.timestamp-gap-item {
-  margin: 10px 0;
-  padding: 10px;
-  background: rgba(238, 238, 238, 0.9);
-  border-radius: 3px;
 }
 
 .gap-start-marker {
@@ -248,12 +252,6 @@ h4 {
   border: 1px solid #fff;
 }
 
-.map-overlay-control {
-  margin-top: 15px;
-  padding-top: 10px;
-  border-top: 1px solid #ddd;
-}
-
 .slow-overlay-marker {
   background: rgba(255, 193, 7, 0.9);
   border: 2px solid #fff;
@@ -264,7 +262,7 @@ h4 {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .gap-overlay-marker {
@@ -277,5 +275,77 @@ h4 {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* =============================================================================
+   ACTIVITY DATA SECTIONS
+   ============================================================================= */
+
+.activity-times {
+  background: #f0f0f0;
+  padding: 15px;
+  border-radius: 5px;
+  margin: 10px 0;
+}
+
+.activity-times p {
+  margin: 5px 0;
+}
+
+.file-summary {
+  background: #e8f4f8;
+  padding: 15px;
+  border-radius: 5px;
+  margin: 10px 0;
+}
+
+/* =============================================================================
+   SLOW PERIODS & RECORDING GAPS
+   ============================================================================= */
+
+.slow-periods {
+  background: #fff3cd;
+  padding: 15px;
+  border-radius: 5px;
+  margin: 10px 0;
+  border-left: 4px solid #ffc107;
+}
+
+.no-slow-periods {
+  background: #d1edff;
+  padding: 15px;
+  border-radius: 5px;
+  margin: 10px 0;
+  border-left: 4px solid #0066cc;
+}
+
+.slow-period-item {
+  margin: 10px 0;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 3px;
+}
+
+.timestamp-gaps {
+  background: #f8d7da;
+  padding: 15px;
+  border-radius: 5px;
+  margin: 10px 0;
+  border-left: 4px solid #dc3545;
+}
+
+.no-timestamp-gaps {
+  background: #d4edda;
+  padding: 15px;
+  border-radius: 5px;
+  margin: 10px 0;
+  border-left: 4px solid #28a745;
+}
+
+.timestamp-gap-item {
+  margin: 10px 0;
+  padding: 10px;
+  background: rgba(238, 238, 238, 0.9);
+  border-radius: 3px;
 }
