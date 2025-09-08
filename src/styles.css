@@ -23,7 +23,7 @@ h4 {
 
 .description{
   display: block;
-  padding-bottom: 30px;
+  padding-bottom: 10px;
 }
 
 .disclaimer {
@@ -34,6 +34,24 @@ h4 {
 
 .disclaimer a {
   color: #333;
+}
+
+.file-selection-box {
+  border: 2px solid #0066cc;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  background: #f8f9ff;
+  box-shadow: 0 2px 4px rgba(0, 102, 204, 0.1);
+}
+
+.file-selection-box label {
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.file-selection-box button {
+  margin-left: 10px;
 }
 
 .example-file-link {
