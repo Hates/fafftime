@@ -72,6 +72,16 @@
           <input type="checkbox" id="threshold_over2hours" value="over2hours" checked> Over 2 hours
         </label>
       </div>
+      <div class="timestamp-gap-control">
+        <label for="timestampGapThreshold">Recording Gap Threshold:</label>
+        <select id="timestampGapThreshold">
+          <option value="60000">1 minute</option>
+          <option value="120000" selected>2 minutes</option>
+          <option value="240000">3 minutes</option>
+          <option value="300000">5 minutes</option>
+          <option value="600000">10 minutes</option>
+        </select> (Increase if using something like auto-pause, which can create a lot of gaps)
+      </div>
       <div class="map-overlay-control">
         <label>
           <input type="checkbox" id="showPeriodsOnMap" checked> Show slow periods & gaps on main map

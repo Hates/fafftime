@@ -15,7 +15,7 @@ const RANGE_LABELS = {
 };
 
 const SPEED_THRESHOLD = 0.75; // m/s threshold for slow periods
-const TIMESTAMP_GAP_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
+const TIMESTAMP_GAP_THRESHOLD = 2 * 60 * 1000; // 2 minutes in milliseconds
 
 // =============================================================================
 // DOM ELEMENTS & GLOBAL STATE
@@ -32,6 +32,7 @@ const analysisControlsElement = document.getElementById('analysisControls');
 const mapContainerElement = document.getElementById('mapContainer');
 const showPeriodsOnMapCheckbox = document.getElementById('showPeriodsOnMap');
 const loadExampleFileLink = document.getElementById('loadExampleFile');
+const timestampGapThresholdSelect = document.getElementById('timestampGapThreshold');
 
 const thresholdCheckboxes = {
   '2to5': document.getElementById('threshold_2to5'),
@@ -129,6 +130,13 @@ Object.values(thresholdCheckboxes).forEach(checkbox => {
 showPeriodsOnMapCheckbox.addEventListener('change', function() {
   if (activityMap && currentSlowPeriods) {
     updateMapOverlays();
+  }
+});
+
+// Timestamp gap threshold change handler
+timestampGapThresholdSelect.addEventListener('change', function() {
+  if (currentFitData && currentFileName) {
+    displayActivityData(currentFitData, currentFileName);
   }
 });
 
@@ -651,8 +659,27 @@ function findSlowPeriodsWithRanges(records, selectedRanges) {
     const speed = record.enhancedSpeed || record.speed || 0;
 
     if (speed < SPEED_THRESHOLD) {
-      // Record is slow, add it to the current sequence
-      currentSlowSequence.push(record);
+      // Check if there's a timestamp gap that should break the current slow sequence
+      if (currentSlowSequence.length > 0) {
+        const previousRecord = currentSlowSequence[currentSlowSequence.length - 1];
+        const timeDifference = record.timestamp - previousRecord.timestamp;
+        
+        // If there's a gap over the threshold, process the current sequence and start a new one
+        if (timeDifference > getCurrentTimestampGapThreshold()) {
+          const slowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
+          if (slowPeriod) {
+            slowPeriods.push(slowPeriod);
+          }
+          // Start new sequence with current record
+          currentSlowSequence = [record];
+        } else {
+          // No significant gap, add to current sequence
+          currentSlowSequence.push(record);
+        }
+      } else {
+        // First slow record in sequence
+        currentSlowSequence.push(record);
+      }
     } else {
       // Record is fast, process any accumulated slow sequence
       const slowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
@@ -761,8 +788,8 @@ function findTimestampGaps(records) {
     // Calculate the time difference between consecutive records
     const timeDifference = currentRecord.timestamp - previousRecord.timestamp;
     
-    // Check if the gap exceeds our threshold (5 minutes = 300,000ms)
-    if (timeDifference > TIMESTAMP_GAP_THRESHOLD) {
+    // Check if the gap exceeds our threshold
+    if (timeDifference > getCurrentTimestampGapThreshold()) {
       // Convert gap duration to more readable units
       const gapDurationMinutes = Math.round(timeDifference / (1000 * 60));
       const gapDurationHours = gapDurationMinutes / 60;
@@ -841,6 +868,13 @@ function processSlowSequence(currentSlowSequence, selectedRanges) {
 // =============================================================================
 // UTILITY FUNCTIONS (PURE FUNCTIONS)
 // =============================================================================
+
+/**
+ * Gets the current timestamp gap threshold from the dropdown selection
+ */
+function getCurrentTimestampGapThreshold() {
+  return parseInt(timestampGapThresholdSelect.value);
+}
 
 /**
  * Formats a duration in seconds to a human-readable string
