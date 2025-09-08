@@ -65,40 +65,6 @@ h4 {
   margin-left: 10px;
 }
 
-#parseButton {
-  background: linear-gradient(135deg, #0066cc, #004499);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-#parseButton:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0052a3, #003366);
-  box-shadow: 0 4px 8px rgba(0, 102, 204, 0.3);
-  transform: translateY(-1px);
-}
-
-#parseButton:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
-}
-
-#parseButton:disabled {
-  background: #cccccc;
-  color: #666666;
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
 .example-file-link {
   margin: 20px 0;
   font-size: 0.9em;
