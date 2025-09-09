@@ -25,8 +25,13 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         { from: 'src/screenshot.png', to: 'screenshot.png' },
-        { from: 'src/favicon.svg', to: 'favicon.svg', noErrorOnMissing: true },
         { from: 'src/GreatBritishEscapades2025.fit', to: 'GreatBritishEscapades2025.fit', noErrorOnMissing: true },
+        // Favicon files
+        { from: 'src/apple-touch-icon.png', to: 'apple-touch-icon.png', noErrorOnMissing: true },
+        { from: 'src/favicon-32x32.png', to: 'favicon-32x32.png', noErrorOnMissing: true },
+        { from: 'src/favicon-16x16.png', to: 'favicon-16x16.png', noErrorOnMissing: true },
+        { from: 'src/favicon.ico', to: 'favicon.ico', noErrorOnMissing: true },
+        { from: 'src/site.webmanifest', to: 'site.webmanifest', noErrorOnMissing: true },
       ],
     }),
   ],
