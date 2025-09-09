@@ -53,6 +53,9 @@ let currentSlowPeriods = null;
 // APPLICATION ENTRY POINTS (EVENT HANDLERS & INITIALIZATION)
 // =============================================================================
 
+// Only initialize DOM-dependent code if we're in a browser environment
+if (typeof window !== 'undefined' && fileInput) {
+
 // File input change handler
 fileInput.addEventListener('change', function(event) {
   const file = event.target.files[0];
@@ -139,6 +142,8 @@ timestampGapThresholdSelect.addEventListener('change', function() {
     displayActivityData(currentFitData, currentFileName);
   }
 });
+
+} // End of browser environment check
 
 // =============================================================================
 // HIGH-LEVEL ORCHESTRATION FUNCTIONS
@@ -664,8 +669,11 @@ function findSlowPeriodsWithRanges(records, selectedRanges) {
         const previousRecord = currentSlowSequence[currentSlowSequence.length - 1];
         const timeDifference = record.timestamp - previousRecord.timestamp;
         
-        // If there's a gap over the threshold, process the current sequence and start a new one
-        if (timeDifference > getCurrentTimestampGapThreshold()) {
+        // If there's a gap over the threshold, process the current sequence and start a new one  
+        const currentThreshold = timestampGapThresholdSelect && timestampGapThresholdSelect.value ? 
+          parseInt(timestampGapThresholdSelect.value) : 
+          5 * 60 * 1000; // 5 minutes default
+        if (timeDifference > currentThreshold) {
           const slowPeriod = processSlowSequence(currentSlowSequence, selectedRanges);
           if (slowPeriod) {
             slowPeriods.push(slowPeriod);
@@ -767,13 +775,20 @@ function extractActivityTimes(sessions, records) {
 /**
  * Detects recording gaps in FIT file data by analyzing timestamp differences between consecutive records.
  * Recording gaps occur when a GPS device is turned off, paused, or loses signal for extended periods.
- * Only gaps longer than TIMESTAMP_GAP_THRESHOLD (5 minutes) are considered significant.
+ * Only gaps longer than the specified threshold are considered significant.
  * 
  * @param {Array} records - Array of record messages from FIT file, each containing timestamp and position data
+ * @param {Number} threshold - Optional threshold in milliseconds. Defaults to current UI setting or 5 minutes
  * @returns {Array} Array of gap objects with timing, location, and distance information
  */
-function findTimestampGaps(records) {
+function findTimestampGaps(records, threshold = null) {
   const gaps = [];
+  
+  // Use provided threshold or fall back to UI setting or default
+  const gapThreshold = threshold || 
+    (timestampGapThresholdSelect && timestampGapThresholdSelect.value ? 
+      parseInt(timestampGapThresholdSelect.value) : 
+      5 * 60 * 1000); // 5 minutes default
   
   // Iterate through consecutive record pairs to find timestamp jumps
   for (let i = 1; i < records.length; i++) {
@@ -789,7 +804,7 @@ function findTimestampGaps(records) {
     const timeDifference = currentRecord.timestamp - previousRecord.timestamp;
     
     // Check if the gap exceeds our threshold
-    if (timeDifference > getCurrentTimestampGapThreshold()) {
+    if (timeDifference > gapThreshold) {
       // Convert gap duration to more readable units
       const gapDurationMinutes = Math.round(timeDifference / (1000 * 60));
       const gapDurationHours = gapDurationMinutes / 60;
@@ -1105,3 +1120,16 @@ function createSlowPeriodsDisplay(slowPeriods, selectedRangeText) {
 
   return containerElement;
 }
+
+// =============================================================================
+// EXPORTS FOR TESTING
+// =============================================================================
+
+export { 
+  extractActivityTimes,
+  findTimestampGaps,
+  processSlowSequence,
+  formatDuration,
+  matchesTimeRange,
+  convertGpsCoordinates
+};

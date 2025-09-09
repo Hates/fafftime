@@ -6,9 +6,6 @@ export default defineConfig({
     // Use jsdom for DOM testing
     environment: 'jsdom',
     
-    // Setup files to run before each test
-    setupFiles: ['./tests/test-setup.js'],
-    
     // Test file patterns
     include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     
