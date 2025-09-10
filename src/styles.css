@@ -2,6 +2,13 @@
    BASE STYLES & TYPOGRAPHY
    ============================================================================= */
 
+@font-face {
+  font-family: 'PlaywriteAUSA';
+  src: url('./PlaywriteAUSA-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 body {
   background: rgb(251, 249, 240);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
@@ -23,6 +30,10 @@ body {
 
 header {
   text-align: center;
+}
+
+h1 {
+  font-family: 'PlaywriteAUSA', cursive;
 }
 
 /* =============================================================================
@@ -54,16 +65,16 @@ header {
     margin: 15px 0;
   }
   
-  .file-selection-box label {
-    display: block;
-    margin-bottom: 10px;
-    margin-right: 0;
+  .file-drop-area {
+    padding: 30px 15px;
   }
   
-  .file-selection-box button {
-    margin-left: 0;
-    margin-top: 10px;
-    width: 100%;
+  .drop-zone-icon {
+    font-size: 2.5rem;
+  }
+  
+  .file-drop-area h3 {
+    font-size: 1.1rem;
   }
   
   #analysisControls label {
@@ -159,14 +170,105 @@ h4 {
   box-shadow: 0 2px 4px rgba(0, 102, 204, 0.1);
 }
 
-.file-selection-box label {
-  font-weight: bold;
-  margin-right: 10px;
+.file-drop-area {
+  border: 2px dashed #0066cc;
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  background: #fdfdff;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
 }
 
-.file-selection-box button {
-  margin-left: 10px;
+.file-drop-area:hover {
+  border-color: #004499;
+  background: #f0f4ff;
 }
+
+.file-drop-area.drag-over {
+  border-color: #004499;
+  background: #e6f2ff;
+  transform: scale(1.02);
+}
+
+.drop-zone-content {
+  pointer-events: none;
+}
+
+.drop-zone-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  color: #0066cc;
+}
+
+.file-drop-area h3 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.file-drop-area p {
+  margin: 8px 0;
+  color: #666;
+}
+
+.file-select-button {
+  background: #0066cc;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+  pointer-events: auto;
+}
+
+.file-select-button:hover {
+  background: #004499;
+}
+
+.file-types {
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.selected-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e8f4f8;
+  border: 1px solid #b3d9e6;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin: 15px 0;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #333;
+  flex: 1;
+}
+
+.remove-file {
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.remove-file:hover {
+  background: #c82333;
+}
+
 
 .example-file-link {
   margin: 20px 0;

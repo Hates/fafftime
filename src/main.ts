@@ -86,8 +86,12 @@ const SPEED_THRESHOLD: number = 0.75; // m/s threshold for slow periods
 // =============================================================================
 
 const fileInput = document.getElementById('fitFile') as HTMLInputElement | null;
+const fileDropArea = document.getElementById('fileDropArea') as HTMLElement | null;
+const fileSelectButton = document.getElementById('fileSelectButton') as HTMLButtonElement | null;
+const selectedFileDiv = document.getElementById('selectedFile') as HTMLElement | null;
+const fileNameSpan = document.getElementById('fileName') as HTMLSpanElement | null;
+const removeFileButton = document.getElementById('removeFile') as HTMLButtonElement | null;
 const screenshot = document.getElementById('screenshot') as HTMLElement | null;
-const parseButton = document.getElementById('parseButton') as HTMLButtonElement | null;
 const activityDataElement = document.getElementById('activityData') as HTMLElement | null;
 const timestampGapDataElement = document.getElementById('timestampGapData') as HTMLElement | null;
 const analysisControlsElement = document.getElementById('analysisControls') as HTMLElement | null;
@@ -118,31 +122,13 @@ let currentSlowPeriods: SlowPeriod[] | null = null;
 // Only initialize DOM-dependent code if we're in a browser environment
 if (typeof window !== 'undefined' && fileInput) {
 
-// File input change handler
-fileInput?.addEventListener('change', function(event: Event) {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (parseButton) {
-    parseButton.disabled = !file;
-  }
-});
-
-// Example file load handler
-loadExampleFileLink?.addEventListener('click', async function(event: Event) {
-  event.preventDefault();
-  await loadExampleFile();
-});
-
-// Main file parsing handler
-parseButton?.addEventListener('click', async function() {
-  if (screenshot) {
-    clearElement(screenshot);
-  }
-
-  const file = fileInput?.files?.[0];
-  if (!file) return;
-
+// Helper function to parse FIT file
+async function parseFitFile(file: File): Promise<void> {
   try {
+    if (screenshot) {
+      clearElement(screenshot);
+    }
+    
     clearElement(activityDataElement);
     const loadingElement = createElementFromTemplate('loading-template', {
       message: '📊 Parsing FIT file...'
@@ -169,7 +155,7 @@ parseButton?.addEventListener('click', async function() {
     currentFileName = file.name;
 
     // Show analysis controls
-    analysisControlsElement.style.display = 'block';
+    if (analysisControlsElement) analysisControlsElement.style.display = 'block';
 
     // Extract activity information
     displayActivityData(fitData, file.name);
@@ -182,10 +168,88 @@ parseButton?.addEventListener('click', async function() {
     const errorElement = createElementFromTemplate('error-template', {
       message: `❌ Error parsing FIT file: ${error.message}`
     });
-    activityDataElement.appendChild(errorElement);
+    if (activityDataElement) activityDataElement.appendChild(errorElement);
     console.error('FIT parsing error:', error);
   }
+}
+
+// Helper function to handle file selection
+async function handleFileSelection(file: File | null): Promise<void> {
+  if (file && file.name.toLowerCase().endsWith('.fit')) {
+    // Show selected file
+    if (fileNameSpan) fileNameSpan.textContent = file.name;
+    if (selectedFileDiv) selectedFileDiv.style.display = 'flex';
+    if (fileDropArea) fileDropArea.style.display = 'none';
+    
+    // Automatically parse the file
+    await parseFitFile(file);
+  } else if (file) {
+    // Invalid file type
+    alert('Please select a .fit file');
+  }
+}
+
+// File input change handler
+fileInput?.addEventListener('change', async function(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  await handleFileSelection(file || null);
 });
+
+// File select button click handler
+fileSelectButton?.addEventListener('click', function() {
+  fileInput?.click();
+});
+
+// Remove file button handler
+removeFileButton?.addEventListener('click', function() {
+  if (fileInput) fileInput.value = '';
+  if (selectedFileDiv) selectedFileDiv.style.display = 'none';
+  if (fileDropArea) fileDropArea.style.display = 'block';
+});
+
+// Drag and drop handlers
+fileDropArea?.addEventListener('click', function() {
+  fileInput?.click();
+});
+
+fileDropArea?.addEventListener('dragover', function(event: DragEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  fileDropArea.classList.add('drag-over');
+});
+
+fileDropArea?.addEventListener('dragleave', function(event: DragEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  fileDropArea.classList.remove('drag-over');
+});
+
+fileDropArea?.addEventListener('drop', async function(event: DragEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  fileDropArea.classList.remove('drag-over');
+  
+  const files = event.dataTransfer?.files;
+  if (files && files.length > 0) {
+    const file = files[0];
+    // Set the file to the hidden input
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+    }
+    await handleFileSelection(file);
+  }
+});
+
+// Example file load handler
+loadExampleFileLink?.addEventListener('click', async function(event: Event) {
+  event.preventDefault();
+  await loadExampleFile();
+});
+
+// Parse button is no longer needed - files are parsed automatically when selected
 
 // Threshold filter change handlers
 Object.values(thresholdCheckboxes).forEach(checkbox => {
@@ -263,9 +327,10 @@ async function loadExampleFile(): Promise<void> {
     // Initialize map with GPS data
     initializeMap(fitData);
 
-    // Clear file input and enable parse button for future use
-    fileInput.value = '';
-    parseButton.disabled = false;
+    // Update UI to show example file loaded
+    if (fileNameSpan) fileNameSpan.textContent = 'GreatBritishEscapades2025.fit (example)';
+    if (selectedFileDiv) selectedFileDiv.style.display = 'flex';
+    if (fileDropArea) fileDropArea.style.display = 'none';
 
   } catch (error) {
     clearElement(activityDataElement);

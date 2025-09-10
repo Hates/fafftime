@@ -23,9 +23,20 @@
   </header>
 
   <div class="file-selection-box">
-    <label for="fitFile">Select FIT File:</label>
-    <input type="file" id="fitFile" accept=".fit" />
-    <button id="parseButton" disabled>Parse FIT File</button>
+    <div class="file-drop-area" id="fileDropArea">
+      <div class="drop-zone-content">
+        <div class="drop-zone-icon">📁</div>
+        <h3>Drop your FIT file here</h3>
+        <p>or <button type="button" class="file-select-button" id="fileSelectButton">choose a file</button></p>
+        <p class="file-types">Accepts .fit files</p>
+      </div>
+      <input type="file" id="fitFile" accept=".fit" style="display: none;" />
+    </div>
+    
+    <div class="selected-file" id="selectedFile" style="display: none;">
+      <span class="file-name" id="fileName"></span>
+      <button type="button" class="remove-file" id="removeFile">❌</button>
+    </div>
 
     <div class="example-file-link">
       <a href="#" id="loadExampleFile">💁 Load example FIT file</a>
