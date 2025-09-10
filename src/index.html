@@ -1,35 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultra Cycling Faff Time</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ultra Cycling Faff Time</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""/>
-  </head>
-  <body>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+</head>
+<body>
+<div class="container">
+  <header>
     <h1>🥐 🚴💨 Ultra Cycling Faff Time</h1>
     <h4>Find where you spent time stopped (faffing) instead of riding.</h4>
-
     <span class="description">After realising there was a 20 hour difference between my elapsed time and moving time during my last ultra event. I wanted a tool to be able to see where all that time went!</span>
+  </header>
 
-    <div class="file-selection-box">
-      <label for="fitFile">Select FIT File:</label>
-      <input type="file" id="fitFile" accept=".fit" />
-      <button id="parseButton" disabled>Parse FIT File</button>
+  <div class="file-selection-box">
+    <label for="fitFile">Select FIT File:</label>
+    <input type="file" id="fitFile" accept=".fit" />
+    <button id="parseButton" disabled>Parse FIT File</button>
 
-      <div class="example-file-link">
-        <a href="#" id="loadExampleFile">💁 Load example FIT file</a>
-      </div>
+    <div class="example-file-link">
+      <a href="#" id="loadExampleFile">💁 Load example FIT file</a>
+    </div>
 
-      <span class="disclaimer">
+    <span class="disclaimer">
         <strong>Please send any example files that do not work for debugging. Use the feedback link below to send them.</strong>
         <br>
         <br>
@@ -37,159 +39,160 @@
         Built using <a href="https://developer.garmin.com/fit/overview/" target="_blank">Garmin FIT SDK</a> and <a href="https://leafletjs.com/" target="_blank">Leaflet</a>.<br>
         <a href="https://github.com/Hates/fafftime" target="_blank">🐙 github.com/Hates/fafftime</a> | <a href="mailto:info@fafftime.com?subject=Faff%20Time%20Feedback">✉️ send feedback</a> 
       </span>
+  </div>
+
+  <div id="screenshot">
+    <h3>Example Output</h3>
+    <img src="screenshot.png">
+  </div>
+
+  <div id="activitySummary"></div>
+
+  <div id="mapContainer">
+    <h3>📍 Activity Map</h3>
+    <div id="map"></div>
+  </div>
+
+  <div id="analysisControls">
+    <label>Slow Period Thresholds:</label>
+    <div>
+      <label>
+        <input type="checkbox" id="threshold_2to5" value="2to5" checked> 2-5 minutes
+      </label>
+      <label>
+        <input type="checkbox" id="threshold_5to10" value="5to10" checked> 5-10 minutes
+      </label>
+      <label>
+        <input type="checkbox" id="threshold_10to30" value="10to30" checked> 10-30 minutes
+      </label>
+      <label>
+        <input type="checkbox" id="threshold_30to60" value="30to60" checked> 30-60 minutes
+      </label>
+      <label>
+        <input type="checkbox" id="threshold_1to2hours" value="1to2hours" checked> 1-2 hours
+      </label>
+      <label>
+        <input type="checkbox" id="threshold_over2hours" value="over2hours" checked> Over 2 hours
+      </label>
     </div>
-
-    <div id="screenshot">
-      <h3>Example Output</h3>
-      <img src="screenshot.png"> 
+    <div class="timestamp-gap-control">
+      <label for="timestampGapThreshold">Recording Gap Threshold:</label>
+      <select id="timestampGapThreshold">
+        <option value="60000">1 minute</option>
+        <option value="120000" selected>2 minutes</option>
+        <option value="240000">3 minutes</option>
+        <option value="300000">5 minutes</option>
+        <option value="600000">10 minutes</option>
+      </select> (Increase if using something like auto-pause, which can create a lot of gaps)
     </div>
-
-    <div id="activitySummary"></div>
-
-    <div id="mapContainer">
-      <h3>📍 Activity Map</h3>
-      <div id="map"></div>
+    <div class="map-overlay-control">
+      <label>
+        <input type="checkbox" id="showPeriodsOnMap" checked> Show slow periods & gaps on main map
+      </label>
     </div>
+  </div>
 
-    <div id="analysisControls">
-      <label>Slow Period Thresholds:</label>
-      <div>
-        <label>
-          <input type="checkbox" id="threshold_2to5" value="2to5" checked> 2-5 minutes
-        </label>
-        <label>
-          <input type="checkbox" id="threshold_5to10" value="5to10" checked> 5-10 minutes
-        </label>
-        <label>
-          <input type="checkbox" id="threshold_10to30" value="10to30" checked> 10-30 minutes
-        </label>
-        <label>
-          <input type="checkbox" id="threshold_30to60" value="30to60" checked> 30-60 minutes
-        </label>
-        <label>
-          <input type="checkbox" id="threshold_1to2hours" value="1to2hours" checked> 1-2 hours
-        </label>
-        <label>
-          <input type="checkbox" id="threshold_over2hours" value="over2hours" checked> Over 2 hours
-        </label>
-      </div>
-      <div class="timestamp-gap-control">
-        <label for="timestampGapThreshold">Recording Gap Threshold:</label>
-        <select id="timestampGapThreshold">
-          <option value="60000">1 minute</option>
-          <option value="120000" selected>2 minutes</option>
-          <option value="240000">3 minutes</option>
-          <option value="300000">5 minutes</option>
-          <option value="600000">10 minutes</option>
-        </select> (Increase if using something like auto-pause, which can create a lot of gaps)
-      </div>
-      <div class="map-overlay-control">
-        <label>
-          <input type="checkbox" id="showPeriodsOnMap" checked> Show slow periods & gaps on main map
-        </label>
-      </div>
-    </div>
+  <div id="slowPeriodData"></div>
+  <div id="timestampGapData"></div>
+  <div id="activityData"></div>
+</div>
 
-    <div id="slowPeriodData"></div>
-    <div id="timestampGapData"></div>
-    <div id="activityData"></div>
+<!-- Templates -->
+<template id="loading-template">
+  <p data-field="message"></p>
+</template>
 
-    <!-- Templates -->
-    <template id="loading-template">
-      <p data-field="message"></p>
-    </template>
+<template id="error-template">
+  <p class="error-message" data-field="message"></p>
+</template>
 
-    <template id="error-template">
-      <p class="error-message" data-field="message"></p>
-    </template>
+<template id="activity-summary-template">
+  <h2 data-field="title"></h2>
+</template>
 
-    <template id="activity-summary-template">
-      <h2 data-field="title"></h2>
-    </template>
+<template id="slow-periods-container-template">
+  <div class="slow-periods">
+    <h3>🐌 Slow Periods & Recording Gaps</h3>
+    <p>Found <span data-field="total-periods"></span> period(s) in selected ranges (<span data-field="range-text"></span>)</p>
+    <p><strong>Breakdown:</strong> <span data-field="slow-count"></span> slow period(s) (speed &lt; 1 m/s), <span data-field="gap-count"></span> recording gap(s)</p>
+    <p><strong>Total duration:</strong> <span data-field="total-duration"></span></p>
+    <div data-field="periods-list"></div>
+  </div>
+</template>
 
-    <template id="slow-periods-container-template">
-      <div class="slow-periods">
-        <h3>🐌 Slow Periods & Recording Gaps</h3>
-        <p>Found <span data-field="total-periods"></span> period(s) in selected ranges (<span data-field="range-text"></span>)</p>
-        <p><strong>Breakdown:</strong> <span data-field="slow-count"></span> slow period(s) (speed &lt; 1 m/s), <span data-field="gap-count"></span> recording gap(s)</p>
-        <p><strong>Total duration:</strong> <span data-field="total-duration"></span></p>
-        <div data-field="periods-list"></div>
-      </div>
-    </template>
+<template id="recording-gap-item-template">
+  <div class="timestamp-gap-item">
+    <strong data-field="title"></strong> <span data-field="time-range"></span><br>
+    <strong>Duration:</strong> <span data-field="duration"></span> (no data recorded)<br>
+    <strong>Distance:</strong> <span data-field="distance-range"></span><br>
+    <span data-field="location-links"></span><br>
+    <div data-field="mini-map" class="mini-map"></div>
+  </div>
+</template>
 
-    <template id="recording-gap-item-template">
-      <div class="timestamp-gap-item">
-        <strong data-field="title"></strong> <span data-field="time-range"></span><br>
-        <strong>Duration:</strong> <span data-field="duration"></span> (no data recorded)<br>
-        <strong>Distance:</strong> <span data-field="distance-range"></span><br>
-        <span data-field="location-links"></span><br>
-        <div data-field="mini-map" class="mini-map"></div>
-      </div>
-    </template>
+<template id="slow-period-item-template">
+  <div class="slow-period-item">
+    <strong data-field="title"></strong> <span data-field="time-range"></span><br>
+    <strong>Duration:</strong> <span data-field="duration"></span> (<span data-field="record-count"></span> records)<br>
+    <strong>Distance marker:</strong> <span data-field="distance"></span> km<span data-field="location-link"></span><br>
+    <div data-field="mini-map" class="mini-map"></div>
+  </div>
+</template>
 
-    <template id="slow-period-item-template">
-      <div class="slow-period-item">
-        <strong data-field="title"></strong> <span data-field="time-range"></span><br>
-        <strong>Duration:</strong> <span data-field="duration"></span> (<span data-field="record-count"></span> records)<br>
-        <strong>Distance marker:</strong> <span data-field="distance"></span> km<span data-field="location-link"></span><br>
-        <div data-field="mini-map" class="mini-map"></div>
-      </div>
-    </template>
+<template id="no-slow-periods-template">
+  <div class="no-slow-periods">
+    <h3>✅ No Slow Periods or Recording Gaps Detected</h3>
+    <p>No periods found in selected ranges (<span data-field="range-text"></span>) where speed was &lt; 1 m/s or where recording gaps occurred.</p>
+    <p>Great job maintaining your pace and consistent recording! 🚴‍♀️💨</p>
+  </div>
+</template>
 
-    <template id="no-slow-periods-template">
-      <div class="no-slow-periods">
-        <h3>✅ No Slow Periods or Recording Gaps Detected</h3>
-        <p>No periods found in selected ranges (<span data-field="range-text"></span>) where speed was &lt; 1 m/s or where recording gaps occurred.</p>
-        <p>Great job maintaining your pace and consistent recording! 🚴‍♀️💨</p>
-      </div>
-    </template>
+<template id="google-maps-link-template">
+  <a data-field="href" target="_blank" class="google-maps-link" data-field="text">📍 View on Google Maps</a>
+</template>
 
-    <template id="google-maps-link-template">
-      <a data-field="href" target="_blank" class="google-maps-link" data-field="text">📍 View on Google Maps</a>
-    </template>
+<template id="no-gps-message-template">
+  <div class="no-gps-message" data-field="message"></div>
+</template>
 
-    <template id="no-gps-message-template">
-      <div class="no-gps-message" data-field="message"></div>
-    </template>
+<template id="activity-times-template">
+  <div class="activity-times">
+    <h3>⏰ Activity Times</h3>
+    <p><strong>Start Time:</strong> <span data-field="start-time"></span></p>
+    <p><strong>End Time:</strong> <span data-field="end-time"></span></p>
+    <p><strong>Duration:</strong> <span data-field="duration"></span></p>
+    <p><strong>Est. Stopped Time:</strong> <span data-field="stopped-time"></span></p>
+    <p><strong>Est. Moving Time:</strong> <span data-field="moving-time"></span></p>
+    <p data-field="distance-info" style="display:none;"><strong>Total Distance:</strong> <span data-field="distance"></span></p>
+  </div>
+</template>
 
-    <template id="activity-times-template">
-      <div class="activity-times">
-        <h3>⏰ Activity Times</h3>
-        <p><strong>Start Time:</strong> <span data-field="start-time"></span></p>
-        <p><strong>End Time:</strong> <span data-field="end-time"></span></p>
-        <p><strong>Duration:</strong> <span data-field="duration"></span></p>
-        <p><strong>Est. Stopped Time:</strong> <span data-field="stopped-time"></span></p>
-        <p><strong>Est. Moving Time:</strong> <span data-field="moving-time"></span></p>
-        <p data-field="distance-info" style="display:none;"><strong>Total Distance:</strong> <span data-field="distance"></span></p>
-      </div>
-    </template>
+<template id="warning-message-template">
+  <p class="warning-message" data-field="message"></p>
+</template>
 
-    <template id="warning-message-template">
-      <p class="warning-message" data-field="message"></p>
-    </template>
+<template id="file-summary-template">
+  <div class="file-summary">
+    <h3>📊 File Summary</h3>
+    <p><strong>Total Records:</strong> <span data-field="total-records"></span></p>
+    <p><strong>Sessions Found:</strong> <span data-field="sessions-found"></span></p>
+    <p><strong>Timestamp Gaps:</strong> <span data-field="timestamp-gaps"></span></p>
+  </div>
+</template>
 
-    <template id="file-summary-template">
-      <div class="file-summary">
-        <h3>📊 File Summary</h3>
-        <p><strong>Total Records:</strong> <span data-field="total-records"></span></p>
-        <p><strong>Sessions Found:</strong> <span data-field="sessions-found"></span></p>
-        <p><strong>Timestamp Gaps:</strong> <span data-field="timestamp-gaps"></span></p>
-      </div>
-    </template>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""></script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-CEQ4W86TKD"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
 
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CEQ4W86TKD"></script>
-    <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-
-    gtag('config', 'G-CEQ4W86TKD');
-    </script>
-  </body>
+  gtag('config', 'G-CEQ4W86TKD');
+</script>
+</body>
 </html>

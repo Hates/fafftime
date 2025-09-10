@@ -1,6 +1,6 @@
 # Testing Guide
 
-This project uses **Vitest** for testing, providing fast and modern test execution with excellent TypeScript support and DOM testing capabilities.
+This project uses **Vitest** for testing, providing fast and modern test execution with excellent TypeScript support and DOM testing capabilities. The project has been converted to TypeScript, enhancing type safety and developer experience.
 
 ## Getting Started
 
@@ -15,11 +15,11 @@ npm run test:ui         # Open Vitest UI (if installed)
 ## Test Structure
 
 ### Test Files
-- `tests/utils.test.js` - Tests for utility and DOM helper functions (formatDuration, createElementFromTemplate, etc.)
-- `tests/analysis.test.js` - Tests for data analysis functions (findTimestampGaps, extractActivityTimes, etc.)
+- `tests/utils.test.ts` - Tests for utility and DOM helper functions (formatDuration, createElementFromTemplate, etc.)
+- `tests/analysis.test.ts` - Tests for data analysis functions (findTimestampGaps, extractActivityTimes, etc.)
 
 ### Test Configuration
-- `vitest.config.js` - Main test configuration
+- `vitest.config.js` - Main test configuration with TypeScript support
 - `tests/test-setup.js` - Test environment setup (mocks, global setup)
 
 ## Coverage
@@ -32,8 +32,8 @@ The current test coverage focuses on:
 ## Writing Tests
 
 ### Basic Test Structure
-```javascript
-import { functionToTest } from '../src/module.js';
+```typescript
+import { functionToTest } from '../src/module';
 
 describe('Module Name', () => {
   describe('functionToTest', () => {
@@ -46,8 +46,8 @@ describe('Module Name', () => {
 ```
 
 ### Testing DOM Functions
-```javascript
-import { createElementFromTemplate } from '../src/utils.js';
+```typescript
+import { createElementFromTemplate } from '../src/utils';
 
 describe('createElementFromTemplate', () => {
   it('creates element from template', () => {
@@ -62,12 +62,13 @@ describe('createElementFromTemplate', () => {
 ```
 
 ### Testing Data Analysis
-```javascript
-import { findTimestampGaps } from '../src/analysis.js';
+```typescript
+import { findTimestampGaps } from '../src/analysis';
+import type { RecordMessage } from '../src/types';
 
 describe('findTimestampGaps', () => {
   it('identifies gaps larger than 5 minutes', () => {
-    const records = [
+    const records: RecordMessage[] = [
       { timestamp: new Date('2024-01-01T10:00:00Z') },
       { timestamp: new Date('2024-01-01T10:10:00Z') } // 10 min gap
     ];
@@ -89,7 +90,7 @@ describe('findTimestampGaps', () => {
 - **Console methods** - To reduce noise during testing
 
 ### Custom Mocks
-```javascript
+```typescript
 // In individual test files
 const mockFunction = vi.fn();
 mockFunction.mockReturnValue('test value');
@@ -101,20 +102,20 @@ expect(mockFunction).toHaveBeenCalledWith(expectedArg);
 
 ### 1. Test Pure Functions First
 Start with utility functions and data processing functions as they're easiest to test:
-```javascript
+```typescript
 // ✅ Easy to test
-function formatDuration(seconds) {
+function formatDuration(seconds: number): string {
   return `${seconds}s`;
 }
 
 // ❌ Harder to test (has side effects)
-function updateUI(data) {
-  document.getElementById('result').innerHTML = data;
+function updateUI(data: string): void {
+  document.getElementById('result')!.innerHTML = data;
 }
 ```
 
 ### 2. Use Descriptive Test Names
-```javascript
+```typescript
 // ✅ Good
 it('returns null when no GPS coordinates are provided')
 
@@ -123,7 +124,7 @@ it('handles edge case')
 ```
 
 ### 3. Test Edge Cases
-```javascript
+```typescript
 describe('formatDuration', () => {
   it('handles zero seconds', () => {
     expect(formatDuration(0)).toBe('0m 0s');
@@ -137,7 +138,7 @@ describe('formatDuration', () => {
 
 ### 4. Keep Tests Independent
 Each test should be able to run in isolation:
-```javascript
+```typescript
 describe('function tests', () => {
   beforeEach(() => {
     // Reset state before each test
@@ -149,20 +150,20 @@ describe('function tests', () => {
 ## Adding New Tests
 
 ### For a New Utility or DOM Function
-1. Add the function to `src/utils.js`
-2. Export it
-3. Add tests to `tests/utils.test.js`
+1. Add the function to `src/utils.ts` with proper TypeScript types
+2. Export it with type information
+3. Add tests to `tests/utils.test.ts`
 4. Run `npm test` to verify
 
 ### For a New Analysis Function
-1. Add the function to `src/analysis.js`
-2. Export it and any dependencies
-3. Add tests to `tests/analysis.test.js`
+1. Add the function to `src/analysis.ts` with proper TypeScript types
+2. Export it and any dependencies with type information
+3. Add tests to `tests/analysis.test.ts`
 4. Include edge cases and error handling
 
 ### For Integration Tests
 Consider testing entire workflows:
-```javascript
+```typescript
 it('processes complete FIT file workflow', () => {
   const mockFitData = createMockFitData();
   const result = processFitFile(mockFitData);
@@ -188,7 +189,7 @@ Tests should run automatically in CI/CD:
 
 ### Running Single Tests
 ```bash
-npx vitest tests/utils.test.js         # Run specific file
+npx vitest tests/utils.test.ts         # Run specific file
 npx vitest -t "formatDuration"         # Run tests matching pattern
 ```
 
@@ -200,7 +201,8 @@ npx vitest --inspect-brk    # Start with debugger
 ### Common Issues
 1. **Mock not working** - Check `tests/test-setup.js` for proper mock setup
 2. **DOM not available** - Ensure `environment: 'jsdom'` in vitest config
-3. **Import errors** - Check that functions are properly exported from modules and import paths use `../src/`
+3. **Import errors** - Check that functions are properly exported from TypeScript modules and import paths use `../src/`
+4. **Type errors** - Ensure TypeScript types are correctly defined and imported where needed
 
 ## Future Testing Goals
 
@@ -208,4 +210,4 @@ npx vitest --inspect-brk    # Start with debugger
 - [ ] Add visual regression tests for UI components  
 - [ ] Add performance tests for large FIT files
 - [ ] Add E2E tests using Playwright
-- [ ] Increase main.js coverage by extracting testable functions
+- [ ] Increase main.ts coverage by extracting testable functions

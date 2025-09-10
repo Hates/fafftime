@@ -73,18 +73,23 @@ The built files will be in the `dist` directory.
 
 ### Architecture
 
-- **Frontend**: Vanilla HTML/CSS/JavaScript with ES6 modules
-- **Build System**: Webpack 5 with development server
+- **Frontend**: TypeScript with ES6 modules and type safety
+- **Build System**: Webpack 5 with TypeScript support and development server
 - **FIT Parsing**: Garmin FIT SDK (@garmin/fitsdk)
-- **Mapping**: Leaflet.js with OpenStreetMap tiles
+- **Mapping**: Leaflet.js with OpenStreetMap tiles and TypeScript types
 - **File Processing**: HTML5 File API with ArrayBuffer handling
+- **Testing**: Vitest with TypeScript integration
 
 ### Key Components
 
-- `src/main.js`: Core application logic and FIT data processing
+- `src/main.ts`: Core application logic and FIT data processing (TypeScript)
+- `src/analysis.ts`: Data analysis functions with strong typing
+- `src/utils.ts`: Utility functions and DOM helpers
+- `src/types.ts`: TypeScript type definitions for FIT data and application state
 - `src/index.html`: User interface and module configuration
 - `src/styles.css`: Application styling
-- `webpack.config.js`: Webpack build configuration
+- `webpack.config.js`: Webpack build configuration with TypeScript support
+- `tsconfig.json`: TypeScript configuration
 - `package.json`: NPM dependencies and project configuration
 
 ### Data Processing
@@ -97,7 +102,7 @@ The application processes FIT files to extract:
 
 ## Browser Compatibility
 
-This application uses ES6 modules and modern JavaScript features. Webpack handles module bundling for broad compatibility with modern browsers:
+This application uses TypeScript compiled to ES6 modules and modern JavaScript features. Webpack handles module bundling and TypeScript compilation for broad compatibility with modern browsers:
 - Chrome 88+
 - Firefox 78+
 - Safari 14+
@@ -109,10 +114,15 @@ This application uses ES6 modules and modern JavaScript features. Webpack handle
 - `@garmin/fitsdk`: Official Garmin FIT SDK for parsing FIT files
 
 ### Development Dependencies
+- `typescript`: TypeScript compiler and language support
+- `ts-loader`: Webpack TypeScript loader
+- `@types/leaflet`: TypeScript type definitions for Leaflet
 - `webpack`: Module bundler and development server
 - `html-webpack-plugin`: HTML template processing
 - `copy-webpack-plugin`: Asset copying
 - `css-loader` & `style-loader`: CSS processing
+- `vitest`: Modern testing framework with TypeScript support
+- `jsdom`: DOM environment for testing
 - `leaflet`: Interactive mapping library (loaded via CDN)
 
 ## License
