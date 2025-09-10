@@ -1,53 +1,115 @@
-import { Decoder, Stream, Profile, Utils } from '@garmin/fitsdk';
+import { Decoder, Stream } from '@garmin/fitsdk';
 import './styles.css';
+
+// =============================================================================
+// TYPE DEFINITIONS
+// =============================================================================
+
+interface FitRecord {
+  timestamp?: Date;
+  speed?: number;
+  enhancedSpeed?: number;
+  distance?: number;
+  positionLat?: number;
+  positionLong?: number;
+  [key: string]: any;
+}
+
+interface FitSession {
+  startTime?: Date;
+  totalTimerTime?: number;
+  totalElapsedTime?: number;
+  totalDistance?: number;
+  [key: string]: any;
+}
+
+interface FitActivity {
+  [key: string]: any;
+}
+
+interface FitData {
+  sessionMesgs?: FitSession[];
+  recordMesgs?: FitRecord[];
+  activityMesgs?: FitActivity[];
+  [key: string]: any;
+}
+
+interface ActivityTimes {
+  startTime: Date | null;
+  endTime: Date | null;
+  movingTime: number | null;
+  totalDistance: number | null;
+}
+
+interface TimestampGap {
+  startTime: Date;
+  endTime: Date;
+  gapDuration: number;
+  gapDurationMinutes: number;
+  gapDurationHours: number;
+  startDistance: number;
+  endDistance: number;
+  startGpsPoint: [number, number] | null;
+  endGpsPoint: [number, number] | null;
+}
+
+interface SlowPeriod {
+  startTime: Date;
+  endTime: Date;
+  recordCount: number;
+  startDistance: number;
+  endDistance: number;
+  gpsPoints: [number, number][];
+  isGap?: boolean;
+  gapData?: TimestampGap;
+}
+
+type TimeRange = '2to5' | '5to10' | '10to30' | '30to60' | '1to2hours' | 'over2hours';
 
 // =============================================================================
 // CONSTANTS & CONFIGURATION
 // =============================================================================
 
-const RANGE_LABELS = {
+const RANGE_LABELS: Record<TimeRange, string> = {
   '2to5': '2-5 minutes',
   '5to10': '5-10 minutes',
   '10to30': '10-30 minutes', 
   '30to60': '30-60 minutes',
   '1to2hours': '1-2 hours',
-  over2hours: 'Over 2 hours'
+  'over2hours': 'Over 2 hours'
 };
 
-const SPEED_THRESHOLD = 0.75; // m/s threshold for slow periods
-const TIMESTAMP_GAP_THRESHOLD = 2 * 60 * 1000; // 2 minutes in milliseconds
+const SPEED_THRESHOLD: number = 0.75; // m/s threshold for slow periods
 
 // =============================================================================
 // DOM ELEMENTS & GLOBAL STATE
 // =============================================================================
 
-const fileInput = document.getElementById('fitFile');
-const screenshot = document.getElementById('screenshot');
-const parseButton = document.getElementById('parseButton');
-const activityDataElement = document.getElementById('activityData');
-const activitySummaryElement = document.getElementById('activitySummary');
-const slowPeriodDataElement = document.getElementById('slowPeriodData');
-const timestampGapDataElement = document.getElementById('timestampGapData');
-const analysisControlsElement = document.getElementById('analysisControls');
-const mapContainerElement = document.getElementById('mapContainer');
-const showPeriodsOnMapCheckbox = document.getElementById('showPeriodsOnMap');
-const loadExampleFileLink = document.getElementById('loadExampleFile');
-const timestampGapThresholdSelect = document.getElementById('timestampGapThreshold');
+const fileInput = document.getElementById('fitFile') as HTMLInputElement | null;
+const screenshot = document.getElementById('screenshot') as HTMLElement | null;
+const parseButton = document.getElementById('parseButton') as HTMLButtonElement | null;
+const activityDataElement = document.getElementById('activityData') as HTMLElement | null;
+const timestampGapDataElement = document.getElementById('timestampGapData') as HTMLElement | null;
+const analysisControlsElement = document.getElementById('analysisControls') as HTMLElement | null;
+const mapContainerElement = document.getElementById('mapContainer') as HTMLElement | null;
+const showPeriodsOnMapCheckbox = document.getElementById('showPeriodsOnMap') as HTMLInputElement | null;
+const loadExampleFileLink = document.getElementById('loadExampleFile') as HTMLAnchorElement | null;
+const timestampGapThresholdSelect = document.getElementById('timestampGapThreshold') as HTMLSelectElement | null;
 
-const thresholdCheckboxes = {
-  '2to5': document.getElementById('threshold_2to5'),
-  '5to10': document.getElementById('threshold_5to10'),
-  '10to30': document.getElementById('threshold_10to30'),
-  '30to60': document.getElementById('threshold_30to60'),
-  '1to2hours': document.getElementById('threshold_1to2hours'),
-  over2hours: document.getElementById('threshold_over2hours')
+const thresholdCheckboxes: Record<TimeRange, HTMLInputElement | null> = {
+  '2to5': document.getElementById('threshold_2to5') as HTMLInputElement | null,
+  '5to10': document.getElementById('threshold_5to10') as HTMLInputElement | null,
+  '10to30': document.getElementById('threshold_10to30') as HTMLInputElement | null,
+  '30to60': document.getElementById('threshold_30to60') as HTMLInputElement | null,
+  '1to2hours': document.getElementById('threshold_1to2hours') as HTMLInputElement | null,
+  'over2hours': document.getElementById('threshold_over2hours') as HTMLInputElement | null
 };
 
 // Global State
-let currentFitData = null;
-let currentFileName = null;
-let activityMap = null;
-let currentSlowPeriods = null;
+let currentFitData: FitData | null = null;
+let currentFileName: string | null = null;
+let activityMap: L.Map | null = null;
+let currentSlowPeriods: SlowPeriod[] | null = null;
 
 // =============================================================================
 // APPLICATION ENTRY POINTS (EVENT HANDLERS & INITIALIZATION)
@@ -57,22 +119,27 @@ let currentSlowPeriods = null;
 if (typeof window !== 'undefined' && fileInput) {
 
 // File input change handler
-fileInput.addEventListener('change', function(event) {
-  const file = event.target.files[0];
-  parseButton.disabled = !file;
+fileInput?.addEventListener('change', function(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (parseButton) {
+    parseButton.disabled = !file;
+  }
 });
 
 // Example file load handler
-loadExampleFileLink.addEventListener('click', async function(event) {
+loadExampleFileLink?.addEventListener('click', async function(event: Event) {
   event.preventDefault();
   await loadExampleFile();
 });
 
 // Main file parsing handler
-parseButton.addEventListener('click', async function() {
-  clearElement(screenshot);
+parseButton?.addEventListener('click', async function() {
+  if (screenshot) {
+    clearElement(screenshot);
+  }
 
-  const file = fileInput.files[0];
+  const file = fileInput?.files?.[0];
   if (!file) return;
 
   try {
@@ -122,7 +189,7 @@ parseButton.addEventListener('click', async function() {
 
 // Threshold filter change handlers
 Object.values(thresholdCheckboxes).forEach(checkbox => {
-  checkbox.addEventListener('change', function() {
+  checkbox?.addEventListener('change', function() {
     if (currentFitData && currentFileName) {
       displayActivityData(currentFitData, currentFileName);
     }
@@ -130,14 +197,14 @@ Object.values(thresholdCheckboxes).forEach(checkbox => {
 });
 
 // Map overlay toggle handler
-showPeriodsOnMapCheckbox.addEventListener('change', function() {
+showPeriodsOnMapCheckbox?.addEventListener('change', function() {
   if (activityMap && currentSlowPeriods) {
     updateMapOverlays();
   }
 });
 
 // Timestamp gap threshold change handler
-timestampGapThresholdSelect.addEventListener('change', function() {
+timestampGapThresholdSelect?.addEventListener('change', function() {
   if (currentFitData && currentFileName) {
     displayActivityData(currentFitData, currentFileName);
   }
@@ -152,7 +219,7 @@ timestampGapThresholdSelect.addEventListener('change', function() {
 /**
  * Loads and processes the example FIT file from the server
  */
-async function loadExampleFile() {
+async function loadExampleFile(): Promise<void> {
   try {
     // Clear screenshot and show loading message
     clearElement(screenshot);
@@ -214,7 +281,7 @@ async function loadExampleFile() {
  * Main function to process FIT data and update the UI
  * Orchestrates data extraction, analysis, and display
  */
-function displayActivityData(fitData, fileName) {
+function displayActivityData(fitData: FitData, fileName: string): void {
   // Find session and record data
   const sessions = fitData.sessionMesgs || [];
   const records = fitData.recordMesgs || [];
@@ -336,7 +403,7 @@ function displayActivityData(fitData, fileName) {
 /**
  * Initializes the main activity map with GPS route and markers
  */
-function initializeMap(fitData) {
+function initializeMap(fitData: FitData): void {
   const records = fitData.recordMesgs || [];
   const gpsPoints = convertGpsCoordinates(records);
 
@@ -394,7 +461,7 @@ function initializeMap(fitData) {
 /**
  * Updates map overlays to show/hide slow periods and recording gaps
  */
-function updateMapOverlays() {
+function updateMapOverlays(): void {
   if (!activityMap || !currentSlowPeriods) {
     return;
   }
@@ -469,7 +536,7 @@ function updateMapOverlays() {
 /**
  * Creates mini-maps for individual slow periods and recording gaps
  */
-function initializeCombinedMiniMaps(periods) {
+function initializeCombinedMiniMaps(periods: SlowPeriod[]): void {
   periods.forEach((period, index) => {
     const mapId = `miniMap${index}`;
     const mapElement = document.getElementById(mapId);
@@ -649,7 +716,7 @@ function initializeCombinedMiniMaps(periods) {
  * @param {Array} selectedRanges - Array of selected time range strings (e.g., ['5to10', '30to60'])
  * @returns {Array} Array of period objects containing both slow periods and recording gaps, sorted chronologically
  */
-function findSlowPeriodsWithRanges(records, selectedRanges) {
+function findSlowPeriodsWithRanges(records: FitRecord[], selectedRanges: TimeRange[]): SlowPeriod[] {
   // Early return if no time ranges are selected for analysis
   if (selectedRanges.length === 0) return [];
 
@@ -746,7 +813,7 @@ function findSlowPeriodsWithRanges(records, selectedRanges) {
 /**
  * Extracts basic activity timing and distance information from sessions and records
  */
-function extractActivityTimes(sessions, records) {
+function extractActivityTimes(sessions: FitSession[], records: FitRecord[]): ActivityTimes {
   let startTime = null;
   let endTime = null;
   let movingTime = null;
@@ -781,7 +848,7 @@ function extractActivityTimes(sessions, records) {
  * @param {Number} threshold - Optional threshold in milliseconds. Defaults to current UI setting or 5 minutes
  * @returns {Array} Array of gap objects with timing, location, and distance information
  */
-function findTimestampGaps(records, threshold = null) {
+function findTimestampGaps(records: FitRecord[], threshold: number | null = null): TimestampGap[] {
   const gaps = [];
   
   // Use provided threshold or fall back to UI setting or default
@@ -842,7 +909,7 @@ function findTimestampGaps(records, threshold = null) {
  * @param {Array} selectedRanges - Array of user-selected time range filters (e.g., ['5to10', '30to60'])
  * @returns {Object|null} Slow period object with timing and location data, or null if no match
  */
-function processSlowSequence(currentSlowSequence, selectedRanges) {
+function processSlowSequence(currentSlowSequence: FitRecord[], selectedRanges: TimeRange[]): SlowPeriod | null {
   // Early return for empty sequences - no slow period to process
   if (currentSlowSequence.length === 0) return null;
   
@@ -887,14 +954,14 @@ function processSlowSequence(currentSlowSequence, selectedRanges) {
 /**
  * Gets the current timestamp gap threshold from the dropdown selection
  */
-function getCurrentTimestampGapThreshold() {
-  return parseInt(timestampGapThresholdSelect.value);
+function getCurrentTimestampGapThreshold(): number {
+  return parseInt(timestampGapThresholdSelect?.value || '300000');
 }
 
 /**
  * Formats a duration in seconds to a human-readable string
  */
-function formatDuration(totalSeconds) {
+function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
@@ -909,23 +976,23 @@ function formatDuration(totalSeconds) {
 /**
  * Gets the currently selected time range filters from checkboxes
  */
-function getSelectedRanges() {
+function getSelectedRanges(): TimeRange[] {
   return Object.entries(thresholdCheckboxes)
-    .filter(([key, checkbox]) => checkbox.checked)
-    .map(([key, checkbox]) => key);
+    .filter(([key, checkbox]) => checkbox?.checked)
+    .map(([key, checkbox]) => key as TimeRange);
 }
 
 /**
  * Converts selected time range keys to human-readable text
  */
-function getSelectedRangeText(selectedRanges) {
+function getSelectedRangeText(selectedRanges: TimeRange[]): string {
   return selectedRanges.map(range => RANGE_LABELS[range]).join(', ');
 }
 
 /**
  * Checks if a duration matches a specific time range category
  */
-function matchesTimeRange(range, durationMinutes, durationHours) {
+function matchesTimeRange(range: TimeRange, durationMinutes: number, durationHours: number): boolean {
   switch (range) {
     case '2to5': return durationMinutes >= 2 && durationMinutes < 5;
     case '5to10': return durationMinutes >= 5 && durationMinutes < 10;
@@ -940,7 +1007,7 @@ function matchesTimeRange(range, durationMinutes, durationHours) {
 /**
  * Converts GPS coordinates from Garmin's semicircle format to decimal degrees
  */
-function convertGpsCoordinates(records) {
+function convertGpsCoordinates(records: FitRecord[]): [number, number][] {
   return records
     .filter(record => record.positionLat && record.positionLong)
     .map(record => [
@@ -956,14 +1023,14 @@ function convertGpsCoordinates(records) {
 /**
  * Creates a DOM element from a template and populates it with data
  */
-function createElementFromTemplate(templateId, data = {}) {
-  const template = document.getElementById(templateId);
+function createElementFromTemplate(templateId: string, data: Record<string, any> = {}): DocumentFragment | null {
+  const template = document.getElementById(templateId) as HTMLTemplateElement;
   if (!template) {
     console.error(`Template not found: ${templateId}`);
     return null;
   }
   
-  const clone = template.content.cloneNode(true);
+  const clone = template.content.cloneNode(true) as DocumentFragment;
   
   // Fill in data fields
   Object.keys(data).forEach(key => {
@@ -985,16 +1052,18 @@ function createElementFromTemplate(templateId, data = {}) {
 /**
  * Removes all child elements from a DOM element
  */
-function clearElement(element) {
-  while (element.firstChild) {
-    element.removeChild(element.firstChild);
+function clearElement(element: HTMLElement | null): void {
+  if (element) {
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
   }
 }
 
 /**
  * Creates a Google Maps link element
  */
-function createGoogleMapsLink(lat, lng, text = '📍 View on Google Maps') {
+function createGoogleMapsLink(lat: number, lng: number, text: string = '📍 View on Google Maps'): HTMLAnchorElement {
   const link = document.createElement('a');
   link.href = `https://www.google.com/maps?q=${lat},${lng}`;
   link.target = '_blank';
@@ -1006,7 +1075,7 @@ function createGoogleMapsLink(lat, lng, text = '📍 View on Google Maps') {
 /**
  * Creates the complex slow periods display UI using templates
  */
-function createSlowPeriodsDisplay(slowPeriods, selectedRangeText) {
+function createSlowPeriodsDisplay(slowPeriods: SlowPeriod[], selectedRangeText: string): DocumentFragment | null {
   if (slowPeriods.length === 0) {
     return createElementFromTemplate('no-slow-periods-template', {
       'range-text': selectedRangeText

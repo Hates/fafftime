@@ -1,5 +1,5 @@
 // Tests for core utility functions
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   extractActivityTimes,
   findTimestampGaps,
@@ -7,22 +7,40 @@ import {
   formatDuration,
   matchesTimeRange,
   convertGpsCoordinates
-} from '../src/main.js';
+} from '../src/main';
 
+// Type definitions for test data
+interface TestFitRecord {
+  timestamp?: Date;
+  speed?: number;
+  enhancedSpeed?: number;
+  distance?: number;
+  positionLat?: number;
+  positionLong?: number;
+}
+
+interface TestFitSession {
+  startTime?: Date;
+  totalTimerTime?: number;
+  totalElapsedTime?: number;
+  totalDistance?: number;
+}
+
+type TestTimeRange = '2to5' | '5to10' | '10to30' | '30to60' | '1to2hours' | 'over2hours';
 
 describe('Core Logic Functions', () => {
   // Tests ordered to match main.js function order
 
   describe('extractActivityTimes', () => {
     it('extracts times from session data', () => {
-      const sessions = [{
+      const sessions: TestFitSession[] = [{
         startTime: new Date('2024-01-01T10:00:00Z'),
         totalTimerTime: 3600, // 1 hour
         totalElapsedTime: 3900, // 1 hour 5 minutes
         totalDistance: 25000 // 25km
       }];
 
-      const records = [];
+      const records: TestFitRecord[] = [];
 
       const result = extractActivityTimes(sessions, records);
 
@@ -33,8 +51,8 @@ describe('Core Logic Functions', () => {
     });
 
     it('falls back to records when no session data', () => {
-      const sessions = [];
-      const records = [
+      const sessions: TestFitSession[] = [];
+      const records: TestFitRecord[] = [
         { timestamp: new Date('2024-01-01T10:00:00Z') },
         { timestamp: new Date('2024-01-01T11:00:00Z') }
       ];
@@ -59,7 +77,7 @@ describe('Core Logic Functions', () => {
 
   describe('findTimestampGaps', () => {
     it('identifies gaps larger than threshold', () => {
-      const records = [
+      const records: TestFitRecord[] = [
         {
           timestamp: new Date('2024-01-01T10:00:00Z'),
           distance: 1000,
@@ -137,7 +155,7 @@ describe('Core Logic Functions', () => {
   });
 
   describe('processSlowSequence', () => {
-    const mockSlowRecords = [
+    const mockSlowRecords: TestFitRecord[] = [
       {
         timestamp: new Date('2024-01-01T10:00:00Z'),
         distance: 1000,
@@ -153,7 +171,7 @@ describe('Core Logic Functions', () => {
     ];
 
     it('processes slow sequence matching selected ranges', () => {
-      const selectedRanges = ['2to5', '5to10'];
+      const selectedRanges: TestTimeRange[] = ['2to5', '5to10'];
       
       const result = processSlowSequence(mockSlowRecords, selectedRanges);
 
@@ -167,7 +185,7 @@ describe('Core Logic Functions', () => {
     });
 
     it('returns null when no ranges match', () => {
-      const selectedRanges = ['30to60']; // 5-minute sequence won't match
+      const selectedRanges: TestTimeRange[] = ['30to60']; // 5-minute sequence won't match
       
       const result = processSlowSequence(mockSlowRecords, selectedRanges);
 
@@ -181,7 +199,7 @@ describe('Core Logic Functions', () => {
     });
 
     it('uses fallback end distance when not available', () => {
-      const recordsWithoutEndDistance = [
+      const recordsWithoutEndDistance: TestFitRecord[] = [
         {
           timestamp: new Date('2024-01-01T10:00:00Z'),
           distance: 1000,
@@ -243,13 +261,13 @@ describe('Core Logic Functions', () => {
     });
 
     it('returns false for unknown ranges', () => {
-      expect(matchesTimeRange('unknown', 30, 0.5)).toBe(false);
+      expect(matchesTimeRange('over2hours' as any, 30, 0.5)).toBe(false);
     });
   });
 
   describe('convertGpsCoordinates', () => {
     it('converts semicircle coordinates to decimal degrees', () => {
-      const records = [
+      const records: TestFitRecord[] = [
         {
           positionLat: 612553967,
           positionLong: -2193335
@@ -271,10 +289,10 @@ describe('Core Logic Functions', () => {
     });
 
     it('filters out records without GPS coordinates', () => {
-      const records = [
+      const records: TestFitRecord[] = [
         { positionLat: 612553967, positionLong: -2193335 },
-        { positionLat: null, positionLong: -2193335 },
-        { positionLat: 612553967, positionLong: null },
+        { positionLat: undefined, positionLong: -2193335 },
+        { positionLat: 612553967, positionLong: undefined },
         { timestamp: new Date() } // No GPS at all
       ];
 
