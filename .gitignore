@@ -11,6 +11,11 @@ dist/
 .env.test.local
 .env.production.local
 
+# Deployment configuration
+deploy.config.sh
+deploy.staging.sh
+deploy.production.sh
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

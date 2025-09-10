@@ -11,7 +11,12 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "deploy": "./deploy.sh staging",
+    "deploy:staging": "./deploy.sh staging",
+    "deploy:production": "./deploy.sh production",
+    "build:deploy": "npm run build && npm run deploy:staging",
+    "build:deploy:production": "npm run build && npm run deploy:production"
   },
   "keywords": [
     "cycling",
