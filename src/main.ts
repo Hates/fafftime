@@ -1262,6 +1262,7 @@ function createSlowPeriodsDisplay(slowPeriods: SlowPeriod[], selectedRangeText: 
 export { 
   extractActivityTimes,
   findTimestampGaps,
+  findSlowPeriodsWithRanges,
   processSlowSequence,
   formatDuration,
   matchesTimeRange,

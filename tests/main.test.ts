@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   extractActivityTimes,
   findTimestampGaps,
+  findSlowPeriodsWithRanges,
   processSlowSequence,
   formatDuration,
   matchesTimeRange,
@@ -30,6 +31,251 @@ type TestTimeRange = '2to5' | '5to10' | '10to30' | '30to60' | '1to2hours' | 'ove
 
 describe('Core Logic Functions', () => {
   // Tests ordered to match main.js function order
+  describe('findSlowPeriodsWithRanges', () => {
+    const createTestRecord = (timestamp: Date, speed: number, distance: number = 0): TestFitRecord => ({
+      timestamp,
+      speed,
+      distance
+    });
+
+    it('returns empty array when no ranges selected', () => {
+      const records: TestFitRecord[] = [
+        createTestRecord(new Date('2024-01-01T10:00:00Z'), 0.5),
+        createTestRecord(new Date('2024-01-01T10:05:00Z'), 0.5)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, []);
+      expect(result).toEqual([]);
+    });
+
+    it('finds slow periods that match selected time ranges', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        // Fast period
+        createTestRecord(new Date(baseTime.getTime()), 2.0, 0),
+        createTestRecord(new Date(baseTime.getTime() + 60000), 2.0, 100),
+        // 6-minute slow period (should match 5to10 range)
+        createTestRecord(new Date(baseTime.getTime() + 120000), 0.5, 200),
+        createTestRecord(new Date(baseTime.getTime() + 180000), 0.5, 220),
+        createTestRecord(new Date(baseTime.getTime() + 240000), 0.5, 240),
+        createTestRecord(new Date(baseTime.getTime() + 300000), 0.5, 260),
+        createTestRecord(new Date(baseTime.getTime() + 360000), 0.5, 280),
+        createTestRecord(new Date(baseTime.getTime() + 480000), 0.5, 300),
+        // Fast period again
+        createTestRecord(new Date(baseTime.getTime() + 540000), 2.0, 400)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['5to10']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].startTime).toEqual(records[2].timestamp);
+      expect(result[0].endTime).toEqual(records[7].timestamp); // Last slow record before fast
+      expect(result[0].recordCount).toBe(6); // All slow records
+      expect(result[0].isGap).toBeUndefined();
+    });
+
+    it('filters out slow periods that do not match selected ranges', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        // 3-minute slow period (should NOT match 5to10 range)
+        createTestRecord(new Date(baseTime.getTime()), 0.5, 0),
+        createTestRecord(new Date(baseTime.getTime() + 60000), 0.5, 20),
+        createTestRecord(new Date(baseTime.getTime() + 180000), 0.5, 40),
+        // Fast period
+        createTestRecord(new Date(baseTime.getTime() + 240000), 2.0, 100)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['5to10']);
+      expect(result).toHaveLength(0);
+    });
+
+    it('handles multiple slow periods with different ranges', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        // 3-minute slow period (matches 2to5)
+        createTestRecord(new Date(baseTime.getTime()), 0.5, 0),
+        createTestRecord(new Date(baseTime.getTime() + 60000), 0.5, 20),
+        createTestRecord(new Date(baseTime.getTime() + 180000), 0.5, 40),
+        // Fast period
+        createTestRecord(new Date(baseTime.getTime() + 240000), 2.0, 100),
+        // 7-minute slow period (matches 5to10)
+        createTestRecord(new Date(baseTime.getTime() + 300000), 0.5, 150),
+        createTestRecord(new Date(baseTime.getTime() + 360000), 0.5, 170),
+        createTestRecord(new Date(baseTime.getTime() + 420000), 0.5, 190),
+        createTestRecord(new Date(baseTime.getTime() + 480000), 0.5, 210),
+        createTestRecord(new Date(baseTime.getTime() + 540000), 0.5, 230),
+        createTestRecord(new Date(baseTime.getTime() + 600000), 0.5, 250),
+        createTestRecord(new Date(baseTime.getTime() + 720000), 0.5, 270),
+        // Fast period
+        createTestRecord(new Date(baseTime.getTime() + 780000), 2.0, 350)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['2to5', '5to10']);
+
+      expect(result).toHaveLength(2);
+      // Results should be sorted chronologically
+      expect(result[0].startTime).toEqual(records[0].timestamp);
+      expect(result[1].startTime).toEqual(records[4].timestamp);
+    });
+
+    it('uses enhanced speed over regular speed when available', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        {
+          timestamp: new Date(baseTime.getTime()),
+          speed: 2.0, // Fast regular speed
+          enhancedSpeed: 0.5, // Slow enhanced speed (should be used)
+          distance: 0
+        },
+        {
+          timestamp: new Date(baseTime.getTime() + 60000), // 1 minute later
+          speed: 2.0,
+          enhancedSpeed: 0.5,
+          distance: 30
+        },
+        {
+          timestamp: new Date(baseTime.getTime() + 120000), // 2 minutes later
+          speed: 2.0,
+          enhancedSpeed: 0.5,
+          distance: 50
+        },
+        {
+          timestamp: new Date(baseTime.getTime() + 240000), // 4 minutes total duration
+          speed: 5.0, // Fast speed to end the slow period
+          enhancedSpeed: 5.0,
+          distance: 100
+        }
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['2to5']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].recordCount).toBe(3); // Three slow records
+    });
+
+    it('handles activity ending with slow period', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        // Fast period
+        createTestRecord(new Date(baseTime.getTime()), 2.0, 0),
+        // Slow period at the end (6 minutes)
+        createTestRecord(new Date(baseTime.getTime() + 60000), 0.5, 100),
+        createTestRecord(new Date(baseTime.getTime() + 120000), 0.5, 120),
+        createTestRecord(new Date(baseTime.getTime() + 180000), 0.5, 140),
+        createTestRecord(new Date(baseTime.getTime() + 240000), 0.5, 160),
+        createTestRecord(new Date(baseTime.getTime() + 300000), 0.5, 180),
+        createTestRecord(new Date(baseTime.getTime() + 420000), 0.5, 200)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['5to10']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].startTime).toEqual(records[1].timestamp);
+      expect(result[0].endTime).toEqual(records[6].timestamp);
+    });
+
+    it('handles records with missing speed data', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        createTestRecord(new Date(baseTime.getTime()), 2.0, 0),
+        // Record with no speed data (should default to 0 and be considered slow)
+        {
+          timestamp: new Date(baseTime.getTime() + 60000),
+          distance: 100
+        },
+        {
+          timestamp: new Date(baseTime.getTime() + 180000),
+          distance: 120
+        },
+        {
+          timestamp: new Date(baseTime.getTime() + 300000),
+          distance: 140
+        },
+        createTestRecord(new Date(baseTime.getTime() + 360000), 2.0, 200)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['2to5']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].recordCount).toBe(3); // Records with missing speed treated as slow
+    });
+
+    it('breaks slow periods on large timestamp gaps', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        // First slow period
+        createTestRecord(new Date(baseTime.getTime()), 0.5, 0),
+        createTestRecord(new Date(baseTime.getTime() + 60000), 0.5, 20),
+        createTestRecord(new Date(baseTime.getTime() + 180000), 0.5, 40),
+        // Large gap (10 minutes - should break the sequence)
+        createTestRecord(new Date(baseTime.getTime() + 780000), 0.5, 60),
+        createTestRecord(new Date(baseTime.getTime() + 840000), 0.5, 80),
+        createTestRecord(new Date(baseTime.getTime() + 960000), 0.5, 100),
+        // Fast period
+        createTestRecord(new Date(baseTime.getTime() + 1020000), 2.0, 150)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['2to5']);
+
+      // Should find two separate slow periods due to the timestamp gap
+      expect(result).toHaveLength(2);
+      expect(result[0].recordCount).toBe(3); // First period
+      expect(result[1].recordCount).toBe(3); // Second period
+    });
+
+    it('sorts results chronologically', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        // First slow period
+        createTestRecord(new Date(baseTime.getTime()), 0.5, 0),
+        createTestRecord(new Date(baseTime.getTime() + 180000), 0.5, 40),
+        // Fast period
+        createTestRecord(new Date(baseTime.getTime() + 240000), 2.0, 100),
+        // Second slow period
+        createTestRecord(new Date(baseTime.getTime() + 300000), 0.5, 150),
+        createTestRecord(new Date(baseTime.getTime() + 480000), 0.5, 190),
+        // Fast period
+        createTestRecord(new Date(baseTime.getTime() + 540000), 2.0, 250)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['2to5']);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].startTime.getTime()).toBeLessThan(result[1].startTime.getTime());
+    });
+
+    it('handles empty records array', () => {
+      const result = findSlowPeriodsWithRanges([], ['2to5', '5to10']);
+      expect(result).toEqual([]);
+    });
+
+    it('includes GPS coordinates when available', () => {
+      const baseTime = new Date('2024-01-01T10:00:00Z');
+      const records: TestFitRecord[] = [
+        {
+          timestamp: new Date(baseTime.getTime()),
+          speed: 0.5,
+          distance: 0,
+          positionLat: 612553967,
+          positionLong: -2193335
+        },
+        {
+          timestamp: new Date(baseTime.getTime() + 180000),
+          speed: 0.5,
+          distance: 40,
+          positionLat: 612553968,
+          positionLong: -2193336
+        },
+        createTestRecord(new Date(baseTime.getTime() + 240000), 2.0, 100)
+      ];
+
+      const result = findSlowPeriodsWithRanges(records, ['2to5']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].gpsPoints).toBeDefined();
+      expect(result[0].gpsPoints.length).toBeGreaterThan(0);
+    });
+  });
 
   describe('extractActivityTimes', () => {
     it('extracts times from session data', () => {
