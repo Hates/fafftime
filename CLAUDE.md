@@ -53,6 +53,8 @@ When making changes:
 - Run `npm test` to ensure all tests pass
 - Test coverage is tracked via `npm run test:coverage`
 
+## Styling
+
 ## Deployment
 
 The project has automated deployment scripts (`deploy.sh`) for both staging and production environments. Always test changes in staging before production deployment.

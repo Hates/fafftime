@@ -2,23 +2,9 @@
    BASE STYLES & TYPOGRAPHY
    ============================================================================= */
 
-/* https://coolors.co/palette/ffcdb2-ffb4a2-e5989b-b5838d-6d6875 */
-:root {
-    --apricot: #ffcdb2ff;
-    --melon: #ffb4a2ff;
-    --salmon-pink: #e5989bff;
-    --old-rose: #b5838dff;
-    --dim-gray: #6d6875ff;
-
-    --primary-color: var(--apricot);
-    --accent-color: var(--melon);
-    --secondary-color: var(--salmon-pink);
-}
-
 @font-face {
     font-family: 'PlaywriteAUSA';
     src: url('./assets/fonts/PlaywriteAUSA-Regular.ttf') format('truetype');
-    color: var(--dim-gray);
     font-weight: normal;
     font-style: normal;
 }
@@ -499,7 +485,6 @@ h4 {
     padding: 15px;
     border-radius: 5px;
     margin: 10px 0;
-    border-left: 4px solid #ffc107;
 }
 
 .no-slow-periods {
@@ -507,7 +492,6 @@ h4 {
     padding: 15px;
     border-radius: 5px;
     margin: 10px 0;
-    border-left: 4px solid #0066cc;
 }
 
 .slow-period-item {
@@ -522,7 +506,6 @@ h4 {
     padding: 15px;
     border-radius: 5px;
     margin: 10px 0;
-    border-left: 4px solid #dc3545;
 }
 
 .no-timestamp-gaps {
@@ -530,7 +513,6 @@ h4 {
     padding: 15px;
     border-radius: 5px;
     margin: 10px 0;
-    border-left: 4px solid #28a745;
 }
 
 .timestamp-gap-item {
