@@ -48,7 +48,7 @@ deploy.sh             # Staging/production helper script invoked via npm scripts
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 26+
 - npm (ships with Node)
 - A modern browser (Chrome, Firefox, Edge, Safari) for running the UI
 
